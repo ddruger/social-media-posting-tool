@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# Social Studio — Cloudflare Worker config
+#
+# You only need to edit ONE line in this file: `database_id`, after you run
+# `npm run db:create`. Everything else is already set up.
+# See README.md for the click-by-click setup.
+# ---------------------------------------------------------------------------
+
+name = "social-studio"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# The scheduled posts live on Upload-Post's servers, so they fire whether or
+# not this Worker is awake. This cron just wakes up every 10 minutes to ask
+# "did they actually go out?" and update the dashboard.
+[triggers]
+crons = ["*/10 * * * *"]
+
+# Lets us `import ui from "./ui.html"` and get the file as a string.
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+# The scheduling database (posts, captions, audit results, job status).
+[[d1_databases]]
+binding = "DB"
+database_name = "social-studio"
+database_id = "PASTE_THE_DATABASE_ID_FROM_npm_run_db_create_HERE"
+
+# Where your videos and images are stored so Upload-Post can fetch them.
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "social-studio-media"
+
+[vars]
+# Leave this empty for the first deploy. After deploying, copy the
+# https://social-studio.<your-subdomain>.workers.dev URL that wrangler prints,
+# paste it here, and deploy once more.
+PUBLIC_BASE_URL = ""
+# Your posting timezone. Used for the calendar and for scheduling.
+DEFAULT_TIMEZONE = "America/Los_Angeles"
+
+[observability]
+enabled = true

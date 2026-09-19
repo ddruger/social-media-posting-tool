@@ -1,0 +1,159 @@
+/** Thin helpers over D1. Nothing clever — just keeps index.js readable. */
+
+import { PLATFORMS } from './rules.js';
+
+export const nowIso = () => new Date().toISOString();
+export const newId = () => crypto.randomUUID();
+
+export async function listPosts(db, { status, limit = 100 } = {}) {
+  const sql = status
+    ? 'SELECT * FROM posts WHERE status = ? ORDER BY COALESCE(scheduled_at, updated_at) DESC LIMIT ?'
+    : 'SELECT * FROM posts ORDER BY COALESCE(scheduled_at, updated_at) DESC LIMIT ?';
+  const args = status ? [status, limit] : [limit];
+  const { results } = await db.prepare(sql).bind(...args).all();
+  return results || [];
+}
+
+export async function getPost(db, id) {
+  return db.prepare('SELECT * FROM posts WHERE id = ?').bind(id).first();
+}
+
+export async function getVariants(db, postId) {
+  const { results } = await db.prepare('SELECT * FROM variants WHERE post_id = ?').bind(postId).all();
+  return results || [];
+}
+
+export async function getAudits(db, postId) {
+  const { results } = await db.prepare('SELECT * FROM audits WHERE post_id = ?').bind(postId).all();
+  const out = {};
+  for (const r of results || []) {
+    try { out[r.platform] = JSON.parse(r.report); } catch { /* ignore a corrupt row */ }
+  }
+  return out;
+}
+
+export async function getJobs(db, postId) {
+  const { results } = await db.prepare('SELECT * FROM jobs WHERE post_id = ? ORDER BY created_at').bind(postId).all();
+  return results || [];
+}
+
+export async function createPost(db, data) {
+  const id = newId();
+  const ts = nowIso();
+  await db.prepare(
+    `INSERT INTO posts (id, name, master_caption, link_url, media_key, media_kind, media_meta,
+                        status, scheduled_at, timezone, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).bind(
+    id, data.name || '', data.master_caption || '', data.link_url || '',
+    data.media_key || null, data.media_kind || 'none', JSON.stringify(data.media_meta || {}),
+    'draft', data.scheduled_at || null, data.timezone || 'America/Los_Angeles', ts, ts,
+  ).run();
+  return id;
+}
+
+const POST_FIELDS = ['name', 'master_caption', 'link_url', 'media_key', 'media_kind', 'media_meta', 'status', 'scheduled_at', 'timezone'];
+
+export async function updatePost(db, id, patch) {
+  const sets = [];
+  const args = [];
+  for (const f of POST_FIELDS) {
+    if (!(f in patch)) continue;
+    sets.push(`${f} = ?`);
+    args.push(f === 'media_meta' && typeof patch[f] !== 'string' ? JSON.stringify(patch[f]) : patch[f]);
+  }
+  if (!sets.length) return;
+  sets.push('updated_at = ?');
+  args.push(nowIso(), id);
+  await db.prepare(`UPDATE posts SET ${sets.join(', ')} WHERE id = ?`).bind(...args).run();
+}
+
+export async function upsertVariant(db, postId, platform, v) {
+  await db.prepare(
+    `INSERT INTO variants (post_id, platform, enabled, body, headline, first_comment, hashtags, options, offset_min)
+     VALUES (?,?,?,?,?,?,?,?,?)
+     ON CONFLICT(post_id, platform) DO UPDATE SET
+       enabled=excluded.enabled, body=excluded.body, headline=excluded.headline,
+       first_comment=excluded.first_comment, hashtags=excluded.hashtags,
+       options=excluded.options, offset_min=excluded.offset_min`,
+  ).bind(
+    postId, platform, v.enabled ? 1 : 0, v.body || '', v.headline || '', v.first_comment || '',
+    typeof v.hashtags === 'string' ? v.hashtags : JSON.stringify(v.hashtags || []),
+    typeof v.options === 'string' ? v.options : JSON.stringify(v.options || {}),
+    v.offset_min || 0,
+  ).run();
+}
+
+export async function saveAudit(db, postId, platform, report) {
+  await db.prepare(
+    `INSERT INTO audits (post_id, platform, score, blockers, report, created_at) VALUES (?,?,?,?,?,?)
+     ON CONFLICT(post_id, platform) DO UPDATE SET
+       score=excluded.score, blockers=excluded.blockers, report=excluded.report, created_at=excluded.created_at`,
+  ).bind(postId, platform, report.score, report.counts.blocker, JSON.stringify(report), nowIso()).run();
+}
+
+export async function createJob(db, { postId, platforms, jobId, requestId, sendAt, state, results, error }) {
+  const id = newId();
+  const ts = nowIso();
+  await db.prepare(
+    `INSERT INTO jobs (id, post_id, platforms, job_id, request_id, send_at, state, results, error, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+  ).bind(
+    id, postId, JSON.stringify(platforms || []), jobId || null, requestId || null,
+    sendAt || null, state || 'pending', JSON.stringify(results || {}), error || '', ts, ts,
+  ).run();
+  return id;
+}
+
+export async function updateJob(db, id, patch) {
+  const sets = [];
+  const args = [];
+  for (const f of ['job_id', 'request_id', 'state', 'error', 'send_at']) {
+    if (f in patch) { sets.push(`${f} = ?`); args.push(patch[f]); }
+  }
+  if ('results' in patch) { sets.push('results = ?'); args.push(JSON.stringify(patch.results)); }
+  if (!sets.length) return;
+  sets.push('updated_at = ?');
+  args.push(nowIso(), id);
+  await db.prepare(`UPDATE jobs SET ${sets.join(', ')} WHERE id = ?`).bind(...args).run();
+}
+
+export async function openJobs(db) {
+  const { results } = await db.prepare(
+    "SELECT * FROM jobs WHERE state IN ('pending','scheduled') ORDER BY created_at LIMIT 100",
+  ).all();
+  return results || [];
+}
+
+export async function getSetting(db, key, fallback = null) {
+  const row = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first();
+  if (!row) return fallback;
+  try { return JSON.parse(row.value); } catch { return row.value; }
+}
+
+export async function setSetting(db, key, value) {
+  await db.prepare(
+    'INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+  ).bind(key, JSON.stringify(value)).run();
+}
+
+export async function allSettings(db) {
+  const { results } = await db.prepare('SELECT key, value FROM settings').all();
+  const out = {};
+  for (const r of results || []) {
+    try { out[r.key] = JSON.parse(r.value); } catch { out[r.key] = r.value; }
+  }
+  return out;
+}
+
+/** Creates one variant row per platform for a brand-new post. */
+export async function seedVariants(db, postId, composed) {
+  for (const p of PLATFORMS) {
+    const c = composed[p] || {};
+    await upsertVariant(db, postId, p, {
+      enabled: true, body: c.body || '', headline: c.headline || '',
+      first_comment: c.first_comment || '', hashtags: c.hashtags || [],
+      options: c.options || {}, offset_min: 0,
+    });
+  }
+}

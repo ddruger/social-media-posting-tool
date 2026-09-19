@@ -1,0 +1,7 @@
+# Copy this file to `.dev.vars` for local testing (`npm run dev`).
+# `.dev.vars` is gitignored — your real keys never get committed.
+# For the deployed version these are set as secrets instead; see README.
+APP_PASSWORD="pick-something-long"
+UPLOADPOST_API_KEY="your-upload-post-api-key"
+UPLOADPOST_USER="daniel"
+ANTHROPIC_API_KEY="optional-only-needed-for-the-AI-rewrite-button"
