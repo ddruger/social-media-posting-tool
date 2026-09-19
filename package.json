@@ -5,6 +5,7 @@
   "description": "Write once, audit against each platform's best practices, schedule everywhere.",
   "type": "module",
   "scripts": {
+    "setup": "bash setup.sh",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:create": "wrangler d1 create social-studio",

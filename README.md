@@ -65,8 +65,32 @@ publishing needs the setup below.
 
 ## Setup
 
-One-time, about 20 minutes. You'll need a terminal (on a Mac: press `⌘+Space`,
-type "Terminal", hit enter). Copy-paste each command and press enter.
+One-time. You'll need a terminal (on a Mac: press `⌘+Space`, type "Terminal",
+hit enter).
+
+### The short way
+
+Get the accounts in Step 1 below, then run:
+
+```bash
+git clone https://github.com/ddruger/social-media-posting-tool.git
+cd social-media-posting-tool
+npm run setup
+```
+
+That does the whole of Steps 2–5 for you: logs you into Cloudflare, creates
+the database and media storage, writes both config values into
+`wrangler.toml` so you never copy-paste an ID, asks for your keys, and
+deploys twice so video hosting works. It prints your URL at the end.
+
+Safe to run again — it skips anything already done. Then go to
+[Step 6](#step-6--connect-your-social-accounts) to connect your accounts,
+which is the one part that has to happen in a browser.
+
+### Or step by step
+
+If you'd rather see each piece, or the script fails partway, these are the
+same actions by hand.
 
 ### Step 1 — Accounts you need
 

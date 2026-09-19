@@ -1,9 +1,9 @@
 # ---------------------------------------------------------------------------
 # Social Studio — Cloudflare Worker config
 #
-# You only need to edit ONE line in this file: `database_id`, after you run
-# `npm run db:create`. Everything else is already set up.
-# See README.md for the click-by-click setup.
+# `npm run setup` fills in `database_id` and `PUBLIC_BASE_URL` for you — you
+# should not need to touch this file at all. Edit it by hand only if you are
+# setting up manually. See README.md.
 # ---------------------------------------------------------------------------
 
 name = "social-studio"
