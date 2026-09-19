@@ -56,6 +56,13 @@ does not need to be on.
 
 ---
 
+## Try it before you set anything up
+
+You can run the whole thing locally with **no accounts and no API keys** — see
+[Testing locally first](#testing-locally-first) at the bottom. Six commands,
+about five minutes, and you get the real drafts and the real audit. Only
+publishing needs the setup below.
+
 ## Setup
 
 One-time, about 20 minutes. You'll need a terminal (on a Mac: press `⌘+Space`,
@@ -283,14 +290,30 @@ npm run logs
 
 ### Testing locally first
 
+You do **not** need any accounts for this — no Cloudflare login, no
+Upload-Post key, nothing. Everything except actually publishing runs on your
+own machine. Needs [Node.js](https://nodejs.org) 18 or newer.
+
 ```bash
-cp .dev.vars.example .dev.vars   # then edit it with your real keys
-npm run db:migrate:local
+git clone https://github.com/ddruger/social-media-posting-tool.git
+cd social-media-posting-tool
+npm install
+echo 'APP_PASSWORD="pick-anything"' > .dev.vars
+npx wrangler d1 execute social-studio --local --file=./schema.sql
 npm run dev
 ```
 
-Opens at `http://localhost:8787` with its own separate local database, so you
-can poke at it without touching anything real.
+Open `http://localhost:8787` and sign in with whatever you put as the
+password. You get the real thing: paste a caption, watch the five drafts
+build, see the audit score them live, click the fixes.
+
+What works with no keys: the five drafts, the full audit, scoring, one-click
+fixes, saving posts. What doesn't: **Connect accounts**, **Audit & schedule**
+and **Rewrite with AI** — those need keys and will say so plainly rather than
+failing oddly. Media upload works locally but the file is stored on your own
+machine, which is fine for checking the video duration and aspect-ratio checks.
+
+It uses a separate local database, so nothing here touches a deployed copy.
 
 
 ---
