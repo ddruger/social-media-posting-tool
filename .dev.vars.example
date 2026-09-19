@@ -1,7 +1,20 @@
-# Copy this file to `.dev.vars` for local testing (`npm run dev`).
-# `.dev.vars` is gitignored — your real keys never get committed.
-# For the deployed version these are set as secrets instead; see README.
-APP_PASSWORD="pick-something-long"
-UPLOADPOST_API_KEY="your-upload-post-api-key"
-UPLOADPOST_USER="daniel"
-ANTHROPIC_API_KEY="optional-only-needed-for-the-AI-rewrite-button"
+# These are the keys Social Studio needs.
+#
+# Deploying with the "Deploy to Cloudflare" button? You will be asked for each
+# of these on the setup page — you do not need this file at all.
+#
+# Running locally instead? Copy this file to `.dev.vars` and fill it in.
+# `.dev.vars` is gitignored, so your keys are never committed.
+
+# Make one up. This is what you type to sign in to Social Studio.
+APP_PASSWORD=
+
+# From upload-post.com -> dashboard -> API Keys.
+UPLOADPOST_API_KEY=
+
+# Must EXACTLY match the profile name you create in Upload-Post under
+# User Management. Lowercase, no spaces.
+UPLOADPOST_USER=
+
+# Optional. Only needed for the "Rewrite with AI" button. Leave blank to skip.
+ANTHROPIC_API_KEY=

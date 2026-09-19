@@ -97,8 +97,17 @@ else
 fi
 
 say "  Creating tables…"
-$WR d1 execute "$DB_NAME" --remote --file=./schema.sql -y >/dev/null 2>&1 \
-  || die "Could not create the tables. Try: npx wrangler d1 execute $DB_NAME --remote --file=./schema.sql"
+# NB: `d1 migrations apply` has no -y flag. Passing one is silently ignored and
+# the command exits 0 having done nothing, so don't add one. It prompts when a
+# terminal is attached, which is why its output is not suppressed here.
+$WR d1 migrations apply DB --remote \
+  || die "Could not create the tables. Try: npx wrangler d1 migrations apply DB --remote"
+
+TABLES="$($WR d1 execute DB --remote --command "SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name='posts';" --json 2>/dev/null || true)"
+if printf '%s' "$TABLES" | grep -q '"n": *0'; then
+  die "The migration reported success but created no tables.
+   Run this and read what it says: npx wrangler d1 migrations apply DB --remote"
+fi
 ok "Tables ready"
 
 # ── 3. Media storage ────────────────────────────────────────────────────────

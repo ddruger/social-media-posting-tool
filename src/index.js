@@ -10,6 +10,7 @@
  */
 
 import UI from './ui.html';
+import SCHEMA from '../migrations/0001_initial.sql';
 import { PLATFORMS, RULES, LAST_REVIEWED, BEST_TIMES } from './rules.js';
 import { auditPost, auditVariant } from './audit.js';
 import { compose, applyFix } from './compose.js';
@@ -27,6 +28,29 @@ const json = (data, status = 200, headers = {}) =>
 const bad = (message, status = 400) => json({ error: message }, status);
 
 const MAX_MEDIA_BYTES = 95 * 1024 * 1024; // Workers cap request bodies around 100MB.
+
+/**
+ * Creates the tables if they are missing.
+ *
+ * Normally the migration runs at deploy time. But if someone deploys without
+ * it — easy to do from the Cloudflare dashboard — every page would fail with
+ * "no such table" and look thoroughly broken. Every statement in the schema is
+ * CREATE ... IF NOT EXISTS, so running it again is harmless.
+ */
+let schemaChecked = false;
+async function ensureSchema(env) {
+  if (schemaChecked) return;
+  const statements = SCHEMA
+    .replace(/--[^\n]*/g, '')
+    .split(';')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => env.DB.prepare(line));
+  if (statements.length) await env.DB.batch(statements);
+  schemaChecked = true;
+}
+
+const isMissingTable = (err) => /no such table/i.test(err?.message || '');
 
 function baseUrl(env, request) {
   const configured = (env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
@@ -395,7 +419,18 @@ export default {
         return new Response(obj.body, { headers });
       }
 
-      if (url.pathname.startsWith('/api/')) return await handleApi(request, env, url);
+      if (url.pathname.startsWith('/api/')) {
+        // Media uploads stream a large body, so they must not be cloned.
+        // They also never touch the database, so they never need the retry.
+        const retry = url.pathname === '/api/media' ? null : request.clone();
+        try {
+          return await handleApi(request, env, url);
+        } catch (err) {
+          if (!retry || !isMissingTable(err)) throw err;
+          await ensureSchema(env);
+          return await handleApi(retry, env, url);
+        }
+      }
 
       if (url.pathname === '/health') return json({ ok: true, rulesReviewed: LAST_REVIEWED });
 
@@ -406,6 +441,11 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(reconcile(env).catch(() => {}));
+    ctx.waitUntil(
+      reconcile(env).catch(async (err) => {
+        if (!isMissingTable(err)) return;
+        await ensureSchema(env).catch(() => {});
+      }),
+    );
   },
 };

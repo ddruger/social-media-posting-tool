@@ -20,14 +20,18 @@ crons = ["*/10 * * * *"]
 # Lets us `import ui from "./ui.html"` and get the file as a string.
 [[rules]]
 type = "Text"
-globs = ["**/*.html"]
+globs = ["**/*.html", "**/*.sql"]
 fallthrough = true
 
 # The scheduling database (posts, captions, audit results, job status).
 [[d1_databases]]
 binding = "DB"
 database_name = "social-studio"
-database_id = "PASTE_THE_DATABASE_ID_FROM_npm_run_db_create_HERE"
+# Left as a placeholder on purpose: the "Deploy to Cloudflare" button creates
+# the database and writes the real id in here for you. `npm run setup` does the
+# same. Only fill it in by hand if you are setting up manually.
+database_id = "PLACEHOLDER_CREATED_ON_DEPLOY"
+migrations_dir = "migrations"
 
 # Where your videos and images are stored so Upload-Post can fetch them.
 [[r2_buckets]]

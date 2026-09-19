@@ -56,71 +56,43 @@ does not need to be on.
 
 ---
 
-## Try it before you set anything up
-
-You can run the whole thing locally with **no accounts and no API keys** — see
-[Testing locally first](#testing-locally-first) at the bottom. Six commands,
-about five minutes, and you get the real drafts and the real audit. Only
-publishing needs the setup below.
-
 ## Setup
 
-One-time. You'll need a terminal (on a Mac: press `⌘+Space`, type "Terminal",
-hit enter).
+### The easy way — one button, no Terminal
 
-### Step 0 — Install Node.js
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ddruger/social-media-posting-tool)
 
-**Do this first.** Everything below runs on Node, and without it the very
-first command fails with `command not found: npm`.
+Click that button. Cloudflare copies this repo into your own GitHub, creates
+the database and media storage for you, asks for your keys on a single page,
+then builds and deploys it. You get a URL to log into. No terminal, no
+commands, nothing to install.
 
-1. Go to **[nodejs.org](https://nodejs.org)** and click the big green **LTS**
-   download button.
-2. Open the downloaded `.pkg` file and click through the installer.
-3. **Quit Terminal completely (⌘Q) and open it again.** A terminal that was
-   already open won't see the new install — this is the step people miss.
+**Have these two ready before you click**, because it asks for them:
 
-Check it worked:
+| | Where to get it |
+|---|---|
+| A **Cloudflare account** | [dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up) — free |
+| An **Upload-Post API key** | [upload-post.com](https://upload-post.com) → dashboard → API Keys — free for 10 posts/month |
 
-```bash
-node -v
-```
+You'll also need a GitHub account, since Cloudflare puts its copy of the code
+there.
 
-You want a version number like `v22.20.0`. Anything 18 or higher is fine.
+On the setup page it asks for four values. Three are required:
 
-### The short way
+- **`APP_PASSWORD`** — make one up. This is what you'll type to sign in.
+- **`UPLOADPOST_API_KEY`** — from the table above.
+- **`UPLOADPOST_USER`** — a profile name, e.g. `daniel`. Lowercase, no spaces.
+  Write it down; it has to match a profile you create in the next step.
+- **`ANTHROPIC_API_KEY`** — optional, only for the "Rewrite with AI" button.
+  Leave it blank and everything else still works.
 
-Get the accounts in Step 1 below, then run:
+When it finishes, Cloudflare shows your URL — something like
+`https://social-studio.<your-name>.workers.dev`. Open it, sign in with the
+password you chose, and bookmark it. That's your tool.
 
-```bash
-git clone https://github.com/ddruger/social-media-posting-tool.git
-cd social-media-posting-tool
-npm run setup
-```
-
-That does the whole of Steps 2–5 for you: logs you into Cloudflare, creates
-the database and media storage, writes both config values into
-`wrangler.toml` so you never copy-paste an ID, asks for your keys, and
-deploys twice so video hosting works. It prints your URL at the end.
-
-Safe to run again — it skips anything already done. Then go to
-[Step 6](#step-6--connect-your-social-accounts) to connect your accounts,
-which is the one part that has to happen in a browser.
-
-### Or step by step
-
-If you'd rather see each piece, or the script fails partway, these are the
-same actions by hand.
-
-### Step 1 — Accounts you need
-
-| Service | What for | Cost |
-|---|---|---|
-| [Cloudflare](https://dash.cloudflare.com/sign-up) | Hosts the tool | Free |
-| [Upload-Post](https://upload-post.com) | Does the actual posting | Free for 10 posts/month, $24/mo unlimited |
-| [Anthropic](https://console.anthropic.com) | *Optional* — the "Rewrite with AI" button | Pay per use, cents per rewrite |
-
-You only need Anthropic if you want the AI rewrite. Everything else — the five
-drafts, the audit, the scheduling — works without it.
+Then do [Step 6](#step-6--connect-your-social-accounts) below to connect your
+five accounts. That part is unavoidably a browser job, but it's just clicking
+"Connect" and approving.
 
 > **On the free Upload-Post plan:** one API call counts as one upload, and
 > posting to all five platforms at the same time is **one call**. So 10 posts a
@@ -128,77 +100,35 @@ drafts, the audit, the scheduling — works without it.
 > platform (the "stagger" field), each distinct time is a separate call — five
 > staggered platforms burns five of your ten.
 
-### Step 2 — Install the tools
+---
+
+### The command-line way
+
+Only if you'd rather. Needs [Node.js](https://nodejs.org) 18+ installed first
+(download the **LTS** build, run the installer, then **quit Terminal with ⌘Q
+and reopen it** — an already-open window won't see the new install).
 
 ```bash
 git clone https://github.com/ddruger/social-media-posting-tool.git
 cd social-media-posting-tool
-npm install
-npx wrangler login
+npm run setup
 ```
 
-That last one opens your browser to connect your Cloudflare account. Click allow.
+`npm run setup` logs you into Cloudflare, creates the database and storage,
+writes the config values in for you, asks for your keys, and deploys. It's
+idempotent, so re-running it is safe and skips anything already done.
 
-### Step 3 — Create the database and file storage
+To run it on your own machine instead of deploying — no accounts or keys
+needed at all, and you still get the full drafts and audit:
 
 ```bash
-npm run db:create
+cp .dev.vars.example .dev.vars    # set APP_PASSWORD, leave the rest blank
+npx wrangler d1 migrations apply DB --local
+npm run dev
 ```
 
-This prints a block of text. Find the line that looks like:
-
-```
-database_id = "a1b2c3d4-...."
-```
-
-Copy that ID. Open `wrangler.toml` in this folder, find the line that says
-`PASTE_THE_DATABASE_ID_FROM_npm_run_db_create_HERE`, and replace that
-placeholder with your ID (keep the quotes). Save the file.
-
-Then:
-
-```bash
-npm run bucket:create
-npm run db:migrate
-```
-
-### Step 4 — Set your passwords and keys
-
-Each of these asks you to paste a value, then press enter. Nothing is stored in
-the code — Cloudflare keeps them encrypted.
-
-```bash
-npx wrangler secret put APP_PASSWORD
-```
-→ Make up a long password. This is what you'll use to sign in.
-
-```bash
-npx wrangler secret put UPLOADPOST_API_KEY
-```
-→ From upload-post.com → Settings → API Key.
-
-```bash
-npx wrangler secret put UPLOADPOST_USER
-```
-→ A profile name, e.g. `daniel`. Lowercase, no spaces.
-
-```bash
-npx wrangler secret put ANTHROPIC_API_KEY
-```
-→ Optional. Skip this one if you don't want the AI rewrite button.
-
-### Step 5 — Deploy
-
-```bash
-npm run deploy
-```
-
-It prints a URL like `https://social-studio.yourname.workers.dev`.
-
-**One more thing:** open `wrangler.toml`, paste that URL into the empty
-`PUBLIC_BASE_URL = ""` line, save, and run `npm run deploy` once more. This is
-how Upload-Post knows where to fetch your videos from — scheduling video posts
-will fail without it.
+Then open `http://localhost:8787`. Publishing won't work without keys, but
+everything else does.
 
 ### Step 6 — Connect your social accounts
 
@@ -212,7 +142,7 @@ same as connecting any app to your accounts.
 In the Upload-Post dashboard, go to **User Management** and create a profile.
 
 > **The profile name must exactly match what you set as `UPLOADPOST_USER` in
-> Step 4.** If you used `daniel` there, name the profile `daniel`. A mismatch
+> setup.** If you used `daniel` there, name the profile `daniel`. A mismatch
 > is the single most common reason posts fail with a confusing error.
 
 #### 6b. Connect each platform
@@ -367,16 +297,16 @@ months — Instagram's hashtag cap went from 30 to 5 with about a week's notice.
 
 | What you see | What it means |
 |---|---|
-| `command not found: npm` | Node.js isn't installed — see [Step 0](#step-0--install-nodejs). If you just installed it, quit Terminal with ⌘Q and reopen. |
+| `command not found: npm` | Node.js isn't installed. You only need it for the command-line route — the [Deploy to Cloudflare button](#the-easy-way--one-button-no-terminal) needs none of it. To install: [nodejs.org](https://nodejs.org), then quit Terminal with ⌘Q and reopen. |
 | `command not found: git` | macOS offers to install it: a box appears saying "command line developer tools", click **Install**, wait, then try again. |
 | "Invalid API key" | `UPLOADPOST_API_KEY` is wrong. Re-run the `wrangler secret put` command for it. |
-| "A video was selected but it has no public URL yet" | You skipped the second deploy in Step 5. Put your URL in `PUBLIC_BASE_URL` and deploy again. |
+| "A video was selected but it has no public URL yet" | The post is set to video but no file finished uploading. Re-add it. |
 | "That file is 120 MB. The limit is 95 MB" | Cloudflare caps uploads at about 100 MB. Export the video smaller — a 1080×1920 Short should be well under 50 MB. |
 | Instagram post fails | Almost always a personal rather than Business/Creator account, or an unverified account. Check Facebook Account Quality, then reconnect in Step 6. |
 | A platform silently stops posting | Its connection expired — see the token table in Step 6. Reconnect under **Manage Users** in the Upload-Post dashboard. |
 | "Session expired" | Same thing: reconnect that platform in the Upload-Post dashboard. |
 | Error mentioning the `user` parameter | Your `UPLOADPOST_USER` doesn't match the profile name in Upload-Post's User Management. They must be identical. |
-| "Video URL not accessible" | Upload-Post can't fetch your video. Usually `PUBLIC_BASE_URL` is empty or wrong — see Step 5. Test by opening `your-url/m/<the file id>` in a private browser window. |
+| "Video URL not accessible" | Upload-Post can't reach your video. Test by opening `your-url/m/<the file id>` in a private browser window — it should download. If you set `PUBLIC_BASE_URL` in `wrangler.toml`, make sure it matches your actual URL; leaving it blank is fine and usually better. |
 | "Not signed in" | Your 30-day Social Studio session expired. Sign in again. |
 
 Live logs, if you need them:
@@ -391,15 +321,15 @@ You do **not** need any accounts for this — no Cloudflare login, no
 Upload-Post key, nothing. Everything except actually publishing runs on your
 own machine.
 
-You do need Node.js 18+ installed first — see [Step 0](#step-0--install-nodejs).
-If `npm` gives you `command not found`, that's what's missing.
+You do need Node.js 18+ installed first ([nodejs.org](https://nodejs.org), LTS
+build). If `npm` gives you `command not found`, that's what's missing.
 
 ```bash
 git clone https://github.com/ddruger/social-media-posting-tool.git
 cd social-media-posting-tool
 npm install
 echo 'APP_PASSWORD="pick-anything"' > .dev.vars
-npx wrangler d1 execute social-studio --local --file=./schema.sql
+npx wrangler d1 migrations apply DB --local
 npm run dev
 ```
 
@@ -431,7 +361,7 @@ src/
   auth.js         Password → signed cookie.
   index.js        Routing, scheduling, the every-10-minutes status check.
   ui.html         The whole interface, one file.
-schema.sql        Database tables.
+migrations/       Database tables, applied automatically on deploy.
 ```
 
 Runs on Cloudflare Workers with D1 (database) and R2 (video storage). All three

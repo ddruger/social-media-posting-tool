@@ -7,10 +7,9 @@
   "scripts": {
     "setup": "bash setup.sh",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "db:create": "wrangler d1 create social-studio",
-    "db:migrate": "wrangler d1 execute social-studio --remote --file=./schema.sql",
-    "db:migrate:local": "wrangler d1 execute social-studio --local --file=./schema.sql",
+    "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply DB --remote",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "bucket:create": "wrangler r2 bucket create social-studio-media",
     "logs": "wrangler tail"
   },
