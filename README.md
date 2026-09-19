@@ -159,19 +159,67 @@ will fail without it.
 
 ### Step 6 — Connect your social accounts
 
-Open your URL, sign in with the password from Step 4, and click
-**Connect accounts** in the top bar. That opens Upload-Post's page where you
-click through LinkedIn, X, Instagram, TikTok and YouTube once each.
+**You do not need developer accounts or API keys for any of the five
+platforms.** Upload-Post's apps are already verified and audited with each
+platform, so connecting is just an ordinary "log in and approve" flow — the
+same as connecting any app to your accounts.
 
-Two things to know:
+#### 6a. Create the profile
 
-- **Instagram** needs a Business or Creator account linked to a Facebook Page.
-  A personal Instagram account cannot be posted to by any tool — that's Meta's
-  rule, not this one. Switch in the Instagram app: Settings → Account type.
-- **YouTube** will ask for permission to upload videos. That's expected.
-- **TikTok** posts go out public by default. If yours arrive as private drafts
-  instead, that's TikTok's own restriction on API apps that haven't cleared
-  their review — it's set on Upload-Post's side, not something in this tool.
+In the Upload-Post dashboard, go to **User Management** and create a profile.
+
+> **The profile name must exactly match what you set as `UPLOADPOST_USER` in
+> Step 4.** If you used `daniel` there, name the profile `daniel`. A mismatch
+> is the single most common reason posts fail with a confusing error.
+
+#### 6b. Connect each platform
+
+In the dashboard, find each network and press **Connect**. The platform's own
+login window opens, you approve the permissions, done. Nothing to configure
+first.
+
+(The **Connect accounts** button in Social Studio opens the same flow. Either
+route works — the dashboard is easier the first time because you can see the
+connection status of all five at once.)
+
+#### Prerequisites, per platform
+
+Only Instagram has a real prerequisite. Sort it out before you start or you
+will get stuck mid-flow.
+
+| Platform | What you need first |
+|---|---|
+| **Instagram** | A **Business or Creator** account — personal accounts cannot be posted to by any tool, and that's Meta's rule. Switch in the Instagram app: Settings → Account type. It must also be **email/phone verified**, and you must approve **every** permission in the OAuth screen. A 400 error on connect means one of those three. |
+| **LinkedIn** | Nothing. Posts to your personal profile, or a company page if you'd rather. |
+| **X** | Nothing. |
+| **TikTok** | Nothing. Posts go out public by default. |
+| **YouTube** | Nothing. It will ask for permission to upload videos — that's expected. Note custom thumbnails aren't supported on Shorts (YouTube's limitation), so the tool doesn't offer one. |
+
+#### Connections expire — this is the thing that will bite you later
+
+Tokens do not last forever, and an expired one means a scheduled post quietly
+fails to go out:
+
+| Platform | Roughly how long | Also expires when |
+|---|---|---|
+| LinkedIn | ~60 days | you change your LinkedIn password |
+| TikTok | ~60 days (auto-renews with regular use) | |
+| Instagram | varies | you change your Facebook password |
+| YouTube | ~6 months | |
+| X | rarely expires | |
+
+If something stops posting, reconnect it under **Manage Users** in the
+Upload-Post dashboard before assuming the tool is broken. Social Studio's
+**Refresh status** button will show you the failure.
+
+#### Daily limits, per connected account
+
+These are the platforms' own caps, not Upload-Post's. You are nowhere near
+them at a normal posting cadence, but for reference:
+
+| Instagram | TikTok | YouTube | LinkedIn | X |
+|---|---|---|---|---|
+| 50/day | 15/day | 30/day | 150/day | 50/day |
 
 Done. Bookmark the URL.
 
@@ -279,8 +327,12 @@ months — Instagram's hashtag cap went from 30 to 5 with about a week's notice.
 | "Invalid API key" | `UPLOADPOST_API_KEY` is wrong. Re-run the `wrangler secret put` command for it. |
 | "A video was selected but it has no public URL yet" | You skipped the second deploy in Step 5. Put your URL in `PUBLIC_BASE_URL` and deploy again. |
 | "That file is 120 MB. The limit is 95 MB" | Cloudflare caps uploads at about 100 MB. Export the video smaller — a 1080×1920 Short should be well under 50 MB. |
-| Instagram post fails | Almost always a personal rather than Business/Creator account, or the Facebook Page link dropped. Reconnect in Step 6. |
-| "Not signed in" | Your 30-day session expired. Sign in again. |
+| Instagram post fails | Almost always a personal rather than Business/Creator account, or an unverified account. Check Facebook Account Quality, then reconnect in Step 6. |
+| A platform silently stops posting | Its connection expired — see the token table in Step 6. Reconnect under **Manage Users** in the Upload-Post dashboard. |
+| "Session expired" | Same thing: reconnect that platform in the Upload-Post dashboard. |
+| Error mentioning the `user` parameter | Your `UPLOADPOST_USER` doesn't match the profile name in Upload-Post's User Management. They must be identical. |
+| "Video URL not accessible" | Upload-Post can't fetch your video. Usually `PUBLIC_BASE_URL` is empty or wrong — see Step 5. Test by opening `your-url/m/<the file id>` in a private browser window. |
+| "Not signed in" | Your 30-day Social Studio session expired. Sign in again. |
 
 Live logs, if you need them:
 
