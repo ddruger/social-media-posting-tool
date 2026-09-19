@@ -68,6 +68,25 @@ publishing needs the setup below.
 One-time. You'll need a terminal (on a Mac: press `⌘+Space`, type "Terminal",
 hit enter).
 
+### Step 0 — Install Node.js
+
+**Do this first.** Everything below runs on Node, and without it the very
+first command fails with `command not found: npm`.
+
+1. Go to **[nodejs.org](https://nodejs.org)** and click the big green **LTS**
+   download button.
+2. Open the downloaded `.pkg` file and click through the installer.
+3. **Quit Terminal completely (⌘Q) and open it again.** A terminal that was
+   already open won't see the new install — this is the step people miss.
+
+Check it worked:
+
+```bash
+node -v
+```
+
+You want a version number like `v22.20.0`. Anything 18 or higher is fine.
+
 ### The short way
 
 Get the accounts in Step 1 below, then run:
@@ -348,6 +367,8 @@ months — Instagram's hashtag cap went from 30 to 5 with about a week's notice.
 
 | What you see | What it means |
 |---|---|
+| `command not found: npm` | Node.js isn't installed — see [Step 0](#step-0--install-nodejs). If you just installed it, quit Terminal with ⌘Q and reopen. |
+| `command not found: git` | macOS offers to install it: a box appears saying "command line developer tools", click **Install**, wait, then try again. |
 | "Invalid API key" | `UPLOADPOST_API_KEY` is wrong. Re-run the `wrangler secret put` command for it. |
 | "A video was selected but it has no public URL yet" | You skipped the second deploy in Step 5. Put your URL in `PUBLIC_BASE_URL` and deploy again. |
 | "That file is 120 MB. The limit is 95 MB" | Cloudflare caps uploads at about 100 MB. Export the video smaller — a 1080×1920 Short should be well under 50 MB. |
@@ -368,7 +389,10 @@ npm run logs
 
 You do **not** need any accounts for this — no Cloudflare login, no
 Upload-Post key, nothing. Everything except actually publishing runs on your
-own machine. Needs [Node.js](https://nodejs.org) 18 or newer.
+own machine.
+
+You do need Node.js 18+ installed first — see [Step 0](#step-0--install-nodejs).
+If `npm` gives you `command not found`, that's what's missing.
 
 ```bash
 git clone https://github.com/ddruger/social-media-posting-tool.git
