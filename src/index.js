@@ -29,6 +29,9 @@ const bad = (message, status = 400) => json({ error: message }, status);
 
 const MAX_MEDIA_BYTES = 95 * 1024 * 1024; // Workers cap request bodies around 100MB.
 
+// Bump when you want to confirm a deploy actually landed. Visible at /health.
+const VERSION = '2026-09-20.1';
+
 /**
  * Creates the tables if they are missing.
  *
@@ -464,7 +467,11 @@ export default {
         }
       }
 
-      if (url.pathname === '/health') return json({ ok: true, rulesReviewed: LAST_REVIEWED });
+      // Public, and deliberately says nothing about configuration. `version`
+      // is here so you can tell which build is actually live after a push.
+      if (url.pathname === '/health') {
+        return json({ ok: true, version: VERSION, rulesReviewed: LAST_REVIEWED });
+      }
 
       return new Response(UI, { headers: { 'content-type': 'text/html; charset=utf-8' } });
     } catch (err) {
