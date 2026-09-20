@@ -11,6 +11,7 @@
 
 import UI from './ui.html';
 import SCHEMA from '../migrations/0001_initial.sql';
+import MIGRATION_0002 from '../migrations/0002_carousel.sql';
 import { PLATFORMS, RULES, LAST_REVIEWED, BEST_TIMES } from './rules.js';
 import { auditPost, auditVariant } from './audit.js';
 import { compose, applyFix } from './compose.js';
@@ -40,20 +41,35 @@ const VERSION = '2026-09-20.1';
  * "no such table" and look thoroughly broken. Every statement in the schema is
  * CREATE ... IF NOT EXISTS, so running it again is harmless.
  */
+const sqlStatements = (sql) => sql
+  .replace(/--[^\n]*/g, '')
+  .split(';')
+  .map((line) => line.trim())
+  .filter(Boolean);
+
 let schemaChecked = false;
 async function ensureSchema(env) {
   if (schemaChecked) return;
-  const statements = SCHEMA
-    .replace(/--[^\n]*/g, '')
-    .split(';')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => env.DB.prepare(line));
-  if (statements.length) await env.DB.batch(statements);
+
+  // Base tables: every statement is CREATE ... IF NOT EXISTS, so a batch is safe.
+  const base = sqlStatements(SCHEMA).map((line) => env.DB.prepare(line));
+  if (base.length) await env.DB.batch(base);
+
+  // Later migrations are ALTER TABLE, which has no IF NOT EXISTS in SQLite.
+  // Run them one at a time and ignore the "already there" failure.
+  for (const line of sqlStatements(MIGRATION_0002)) {
+    try {
+      await env.DB.prepare(line).run();
+    } catch (err) {
+      if (!/duplicate column name|already exists/i.test(err?.message || '')) throw err;
+    }
+  }
   schemaChecked = true;
 }
 
-const isMissingTable = (err) => /no such table/i.test(err?.message || '');
+// A missing column matters as much as a missing table: it means a migration
+// did not run at deploy time, and the fix for both is to apply the schema.
+const isMissingTable = (err) => /no such table|no such column|has no column named/i.test(err?.message || '');
 
 function baseUrl(env, request) {
   const origin = new URL(request.url).origin;
