@@ -241,6 +241,45 @@ function ratioMatches(w, h, pairs, tol = 0.04) {
   return (pairs || []).some(([a, b]) => Math.abs(actual - a / b) <= tol);
 }
 
+/**
+ * Checks a multi-image post against the platform's carousel limits, and
+ * catches the mixed image/video case that only Instagram tolerates.
+ */
+function carouselChecks(platform, r, items, f) {
+  const n = items.length;
+  const c = r.carousel;
+
+  if (!c) {
+    f.push(warn(
+      'no-carousel',
+      `${r.label} takes one file`,
+      `${n} files attached, but ${r.label} publishes a single video. Only the first will be used.`,
+    ));
+    return;
+  }
+
+  if (n > c.hardMax) {
+    const extra = r.carouselApiCapBelowApp
+      ? ` The app itself allows ${r.carouselApiCapBelowApp}, but every scheduling tool goes through the API, which stops at ${c.hardMax}.`
+      : '';
+    f.push(block('carousel-over', `Too many for ${r.label}`, `${n} files against a limit of ${c.hardMax}. Remove ${n - c.hardMax}.${extra}`));
+  } else if (n > c.max) {
+    f.push(warn('carousel-many', 'More slides than tends to land', `${n} files. ${r.label} allows up to ${c.hardMax}, but past about ${c.max} people stop swiping.`));
+  } else {
+    f.push(ok('carousel', `${n}-slide carousel`, `Inside ${r.label}'s limit of ${c.hardMax}.`));
+  }
+
+  const kinds = new Set(items.map((i) => i.kind));
+  if (kinds.size > 1 && platform !== 'instagram') {
+    f.push(block('carousel-mixed', 'Images and video mixed', `${r.label} cannot publish a carousel that mixes the two. Instagram is the only one that can.`));
+  }
+
+  const portrait = items.filter((i) => i.meta?.width && i.meta?.height && i.meta.height > i.meta.width).length;
+  if (portrait && portrait !== n) {
+    f.push(tip('carousel-shapes', 'Slides are different shapes', `${portrait} of ${n} are portrait. Carousels crop to the first slide's shape, so the rest may be cut.`));
+  }
+}
+
 function mediaChecks(platform, r, media, kind, f, hasMedia = true) {
   if ((kind === 'video' || kind === 'image') && !hasMedia) {
     f.push(block('media-missing', 'No file uploaded yet', `This post is set to ${kind} but nothing has been uploaded. Publishing would fail.`));
@@ -348,7 +387,8 @@ function auditLinkedIn(v, ctx, f) {
   if (!opts.visibility) {
     f.push(tip('visibility', 'Visibility not set', 'Defaults to PUBLIC, which is almost always what you want. Set it explicitly if not.'));
   }
-  mediaChecks('linkedin', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
+  if ((ctx.items || []).length > 1) carouselChecks('linkedin', r, ctx.items, f);
+  else mediaChecks('linkedin', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
 }
 
 function auditX(v, ctx, f) {
@@ -409,6 +449,7 @@ function auditX(v, ctx, f) {
       ));
     }
   }
+  if ((ctx.items || []).length > 1) carouselChecks('x', r, ctx.items, f);
   if ((ctx.mediaKind === 'video' || ctx.mediaKind === 'image') && ctx.hasMedia === false) {
     f.push(block('media-missing', 'No file uploaded yet', `This post is set to ${ctx.mediaKind} but nothing has been uploaded. Publishing would fail.`));
   }
@@ -434,7 +475,8 @@ function auditInstagram(v, ctx, f) {
 
   hashtagChecks(collectTags(v, body), r, f, 'Instagram');
   emojiChecks(body, r, f);
-  mediaChecks('instagram', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
+  if ((ctx.items || []).length > 1) carouselChecks('instagram', r, ctx.items, f);
+  else mediaChecks('instagram', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
 
   const opts = safeJson(v.options);
   if (ctx.mediaKind === 'video' && !opts.cover_url) {
@@ -472,7 +514,8 @@ function auditTikTok(v, ctx, f) {
 
   hashtagChecks(collectTags(v, body), r, f, 'TikTok');
   emojiChecks(body, r, f);
-  mediaChecks('tiktok', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
+  if ((ctx.items || []).length > 1) carouselChecks('tiktok', r, ctx.items, f);
+  else mediaChecks('tiktok', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
 
   // Length is a genuine strategy fork here, so surface the tradeoff rather
   // than pretending one number is correct.
@@ -567,7 +610,8 @@ function auditYouTube(v, ctx, f) {
       f.push(tip('yt-thumb', 'No custom thumbnail', 'Regular videos support one and it is the main thing people click. Shorts do not.'));
     }
   } else {
-    mediaChecks('youtube', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
+    if ((ctx.items || []).length > 1) carouselChecks('youtube', r, ctx.items, f);
+  else mediaChecks('youtube', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
     if (ctx.mediaKind === 'video' && dur && dur <= r.video.maxSeconds && vertical) {
       f.push(ok('yt-qualifies', 'Qualifies as a Short', `Square-or-taller and ${dur.toFixed(0)}s — YouTube will classify this as a Short automatically.`));
     }
@@ -646,8 +690,8 @@ export function auditVariant(variant, ctx = {}) {
   };
 }
 
-export function auditPost(post, variants, settings = {}) {
-  const media = JSON.parse(post.media_meta || '{}');
+export function auditPost(post, variants, settings = {}, items = []) {
+  const media = items[0]?.meta || JSON.parse(post.media_meta || '{}');
   const enabled = variants.filter((v) => v.enabled);
   const reports = {};
   for (const v of enabled) {
@@ -656,7 +700,8 @@ export function auditPost(post, variants, settings = {}) {
       mediaKind: post.media_kind,
       siblings: enabled,
       // A purged post did have its file; it was deleted after publishing.
-      hasMedia: Boolean(post.media_key) || media.purged === true,
+      hasMedia: Boolean(post.media_key) || items.length > 0 || media.purged === true,
+      items,
       scheduledAt: post.scheduled_at,
       timezone: post.timezone,
       settings,

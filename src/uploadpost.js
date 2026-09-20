@@ -173,7 +173,7 @@ function applyVariant(form, variant, mediaKind) {
  *   linkUrl     optional link, used for text-post link previews
  */
 export async function publish(env, args) {
-  const { platforms, variants, mediaKind, mediaUrl, sendAt, linkUrl, timezone } = args;
+  const { platforms, variants, mediaKind, mediaUrls = [], sendAt, linkUrl, timezone } = args;
   const user = env.UPLOADPOST_USER;
   if (!user) throw new UploadPostError('UPLOADPOST_USER is not set.', 500);
   if (!platforms?.length) throw new UploadPostError('No platforms selected.', 400);
@@ -198,14 +198,20 @@ export async function publish(env, args) {
     form.set('async_upload', 'true');
   }
 
+  // One video goes to /upload; anything else with media — a single image or a
+  // carousel, including Instagram's mixed image/video kind — goes to
+  // /upload_photos, which takes an ordered photos[] list.
   let path;
-  if (mediaKind === 'video') {
-    if (!mediaUrl) throw new UploadPostError('A video was selected but it has no public URL yet.', 400);
-    form.set('video', mediaUrl);
+  if (mediaUrls.length > 1) {
+    for (const u of mediaUrls) form.append('photos[]', u);
+    path = '/upload_photos';
+  } else if (mediaKind === 'video') {
+    if (!mediaUrls[0]) throw new UploadPostError('A video was selected but it has no public URL yet.', 400);
+    form.set('video', mediaUrls[0]);
     path = '/upload';
   } else if (mediaKind === 'image') {
-    if (!mediaUrl) throw new UploadPostError('An image was selected but it has no public URL yet.', 400);
-    form.append('photos[]', mediaUrl);
+    if (!mediaUrls[0]) throw new UploadPostError('An image was selected but it has no public URL yet.', 400);
+    form.append('photos[]', mediaUrls[0]);
     path = '/upload_photos';
   } else {
     if (linkUrl) form.set('link_url', linkUrl);

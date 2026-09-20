@@ -51,6 +51,10 @@ export const RULES = {
     // [STUDY] Van der Blom "Algorithm Insights" 2026, 1.3M posts / 50k
     // creators: ONE external link in the post body costs ~18.8% of median
     // reach. Real, but modest.
+    // [OFFICIAL] LinkedIn's MultiImage API takes 2–20. Third-party paths
+    // commonly cap at 9, and past that the gallery reads as a dump, so 9 is
+    // the advised ceiling and 20 the hard one.
+    carousel: { min: 2, max: 9, hardMax: 20 },
     outboundLinkReachCost: 0.188,
     // [STUDY] Same report: LinkedIn now suppresses COMMENTS containing
     // external links by up to 80%, and detects "bridge behaviour" where a
@@ -80,6 +84,8 @@ export const RULES = {
     maxCharsPremium: 25000,
     // [OFFICIAL] Every URL is rewritten to t.co and always bills as 23
     // characters, however long the real link is. Media costs nothing.
+    // [OFFICIAL] Four images per post, hard.
+    carousel: { min: 2, max: 4, hardMax: 4 },
     urlCharCost: 23,
     // [STUDY/SOFT] 71–100 characters remains the most-cited high-engagement
     // band and is still repeated across 2026 analyses. The original is an
@@ -113,6 +119,11 @@ export const RULES = {
     // hashtags, rather than many generic ones, can improve both your
     // content's performance and people's experience on Instagram."
     hashtags: { min: 3, max: 5, hardMax: 5 },
+    // [OFFICIAL] The app allows 20, but Meta's Content Publishing API — which
+    // is what any scheduling tool uses — is capped at 10. Longer carousels
+    // have to be posted by hand.
+    carousel: { min: 2, max: 10, hardMax: 10 },
+    carouselApiCapBelowApp: 20,
     hashtagCapIsPlatformEnforced: true,
     emoji: { max: 10 },
     // [OFFICIAL] URLs in captions are plain text — not clickable.
@@ -141,6 +152,8 @@ export const RULES = {
     // Getting this wrong means a post that looks fine in the editor and is
     // rejected on send.
     maxChars: 2200,
+    // [OFFICIAL] Photo posts take up to 35 images.
+    carousel: { min: 2, max: 35, hardMax: 35 },
     appCaptionLimit: 4000,
     apiLimitDiffersFromApp: true,
     // [SOFT] Roughly what shows over the video before "more".

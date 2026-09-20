@@ -96,7 +96,8 @@ async function schedulePost(env, request, postId, { force = false } = {}) {
   if (!enabled.length) return bad('No platforms are switched on for this post.');
 
   const settings = await db.allSettings(env.DB);
-  const result = auditPost(post, variants, settings);
+  const items = db.mediaItems(post);
+  const result = auditPost(post, variants, settings, items);
   for (const [platform, report] of Object.entries(result.reports)) {
     await db.saveAudit(env.DB, postId, platform, report);
   }
@@ -113,7 +114,8 @@ async function schedulePost(env, request, postId, { force = false } = {}) {
     return bad('That send time is in the past (or less than a minute away). Pick a later time.');
   }
 
-  const mediaUrl = post.media_key ? `${baseUrl(env, request)}/m/${post.media_key}` : null;
+  const base = baseUrl(env, request);
+  const mediaUrls = items.map((i) => `${base}/m/${i.key}`);
   const groups = groupBySendTime(enabled, post.scheduled_at);
   const created = [];
   const failures = [];
@@ -125,7 +127,7 @@ async function schedulePost(env, request, postId, { force = false } = {}) {
         platforms,
         variants: group,
         mediaKind: post.media_kind,
-        mediaUrl,
+        mediaUrls,
         sendAt: sendAt === 'now' ? null : sendAt,
         linkUrl: post.link_url,
         timezone: post.timezone,
@@ -208,13 +210,15 @@ async function reconcile(env) {
 async function purgeMedia(env, postId, settings) {
   if (settings?.keepMediaAfterPublish) return;
   const post = await db.getPost(env.DB, postId);
-  if (!post?.media_key) return;
-  await env.MEDIA.delete(post.media_key).catch(() => {});
+  const items = db.mediaItems(post);
+  if (!items.length) return;
+  for (const item of items) await env.MEDIA.delete(item.key).catch(() => {});
   let meta = {};
   try { meta = JSON.parse(post.media_meta || '{}'); } catch { /* keep going */ }
   await db.updatePost(env.DB, postId, {
     media_key: null,
-    media_meta: JSON.stringify({ ...meta, purged: true, purgedAt: db.nowIso() }),
+    media_items: JSON.stringify(items.map((i) => ({ ...i, key: null }))),
+    media_meta: JSON.stringify({ ...meta, purged: true, purgedAt: db.nowIso(), count: items.length }),
   });
 }
 
@@ -295,6 +299,7 @@ async function handleApi(request, env, url) {
       reports[v.platform] = auditVariant(v, {
         media: body.media_meta || {}, mediaKind: body.media_kind || 'none',
         hasMedia: body.has_media !== false,
+        items: body.items || [],
         siblings: variants, scheduledAt: body.scheduled_at, timezone: body.timezone,
         settings: { ...settings, ...(body.settings || {}) },
       });
@@ -369,7 +374,9 @@ async function handleApi(request, env, url) {
         env.DB.prepare('DELETE FROM jobs     WHERE post_id = ?').bind(id),
         env.DB.prepare('DELETE FROM posts    WHERE id = ?').bind(id),
       ]);
-      if (post.media_key) await env.MEDIA.delete(post.media_key).catch(() => {});
+      for (const item of db.mediaItems(post)) {
+        if (item.key) await env.MEDIA.delete(item.key).catch(() => {});
+      }
       return json({ ok: true });
     }
 
@@ -386,7 +393,7 @@ async function handleApi(request, env, url) {
     if (action === 'audit' && method === 'POST') {
       const variants = await db.getVariants(env.DB, id);
       const settings = await db.allSettings(env.DB);
-      const result = auditPost(post, variants, settings);
+      const result = auditPost(post, variants, settings, db.mediaItems(post));
       for (const [platform, report] of Object.entries(result.reports)) {
         await db.saveAudit(env.DB, id, platform, report);
       }

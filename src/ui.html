@@ -254,10 +254,10 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
         <div class="card">
           <h2>Video or image</h2>
           <div id="dropzone" class="drop">
-            <strong>Drop a file here</strong> or click to choose<br>
-            <span class="muted">Vertical 1080×1920 for Reels, TikTok and Shorts. Up to 95 MB.</span>
+            <strong>Drop files here</strong> or click to choose<br>
+            <span class="muted">One video, or several images for a carousel. Vertical 1080×1920 for Reels and Shorts. Up to 95 MB each.</span>
           </div>
-          <input type="file" id="fileInput" class="hide" accept="video/*,image/*">
+          <input type="file" id="fileInput" class="hide" accept="video/*,image/*" multiple>
           <div id="mediaInfo" class="media-info hide" style="margin-top:12px"></div>
         </div>
 
@@ -553,17 +553,25 @@ function folded(text, foldChars) {
   return `${linkify(chars.slice(0, foldChars).join(''))}<span class="pv-more">… more</span>`;
 }
 
-function mediaBlock(vertical) {
-  const kind = S.current?.media_kind;
-  const key = S.current?.media_key;
+function mediaBlock(vertical, slide = 0) {
+  const items = mediaList();
   const meta = parse(S.current?.media_meta);
-  if (kind === 'none' || (!key && !meta.purged)) return '';
   const cls = vertical ? 'pv-media pv-vert' : 'pv-media';
-  if (!key) return `<div class="${cls}" style="min-height:180px">video already posted and cleared from storage</div>`;
-  const inner = kind === 'video'
-    ? `<video src="/m/${esc(key)}" muted playsinline preload="metadata"></video>`
-    : `<img src="/m/${esc(key)}" alt="">`;
-  return `<div class="${cls}">${inner}</div>`;
+  if (!items.length) return meta.purged ? `<div class="${cls}" style="min-height:180px">already posted and cleared from storage</div>` : '';
+
+  const item = items[Math.min(slide, items.length - 1)];
+  if (!item.key) return `<div class="${cls}" style="min-height:180px">already posted and cleared from storage</div>`;
+  const inner = item.kind === 'video'
+    ? `<video src="/m/${esc(item.key)}" muted playsinline preload="metadata"></video>`
+    : `<img src="/m/${esc(item.key)}" alt="">`;
+  // A carousel shows slide one with a counter, the way the real feeds do.
+  const counter = items.length > 1
+    ? `<div style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,.65);color:#fff;border-radius:99px;padding:3px 10px;font-size:12px">1/${items.length}</div>
+       <div style="position:absolute;bottom:10px;left:0;right:0;display:flex;gap:5px;justify-content:center">
+         ${items.map((_, i) => `<span style="width:6px;height:6px;border-radius:50%;background:${i === 0 ? '#fff' : 'rgba(255,255,255,.45)'}"></span>`).join('')}
+       </div>`
+    : '';
+  return `<div class="${cls}" style="position:relative">${inner}${counter}</div>`;
 }
 
 /** Mirrors the server's thread split so the preview tracks live edits. */
@@ -695,7 +703,8 @@ function auditPayload() {
     variants: S.variants.map((v) => ({ ...v, enabled: !!v.enabled })),
     media_kind: S.current?.media_kind || 'none',
     media_meta: parse(S.current?.media_meta),
-    has_media: Boolean(S.current?.media_key),
+    has_media: Boolean(S.current?.media_key) || mediaList().length > 0,
+    items: mediaList(),
     scheduled_at: chosenSendAt(),
     timezone: $('#fTz').value || S.defaultTimezone,
     settings: S.settings,
@@ -817,7 +826,55 @@ async function aiRewrite(platform, btn) {
 /* ---------------- media ---------------- */
 function renderMedia() {
   const box = $('#mediaInfo');
+  const items = mediaList();
   const meta = parse(S.current?.media_meta);
+
+  if (items.length && items[0].key) {
+    box.classList.remove('hide');
+    box.style.display = 'block';
+    box.innerHTML = `
+      ${items.length > 1 ? `<p class="muted" style="margin-bottom:10px">${items.length}-slide carousel — drag order is the post order.</p>` : ''}
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${items.map((it, i) => {
+          const m = it.meta || {};
+          const dur = m.durationSec ? `${m.durationSec.toFixed(0)}s · ` : '';
+          const dim = m.width ? `${m.width}×${m.height} · ` : '';
+          const mb = m.bytes ? `${(m.bytes / 1048576).toFixed(1)} MB` : '';
+          const thumb = it.kind === 'video'
+            ? `<video src="/m/${esc(it.key)}" muted playsinline preload="metadata" style="width:58px;border-radius:6px;border:1px solid var(--line);background:#000"></video>`
+            : `<img src="/m/${esc(it.key)}" alt="" style="width:58px;border-radius:6px;border:1px solid var(--line)">`;
+          return `<div class="media-info" style="gap:10px;border:1px solid var(--line);border-radius:9px;padding:8px">
+            <span class="muted" style="font-family:var(--font-mono);font-size:12px;width:18px">${i + 1}</span>
+            ${thumb}
+            <div style="min-width:0"><div style="font-weight:600;font-size:13px">${esc(m.name || it.kind)}</div>
+            <div class="muted" style="font-size:12px">${esc(dur + dim + mb)}</div></div>
+            <span style="margin-left:auto;display:flex;gap:4px">
+              <button class="btn-sm" data-mv="${i}:-1" ${i === 0 ? 'disabled' : ''} title="Move up">↑</button>
+              <button class="btn-sm" data-mv="${i}:1" ${i === items.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
+              <button class="btn-sm" data-rm="${i}" style="color:var(--bad)">Remove</button>
+            </span>
+          </div>`;
+        }).join('')}
+      </div>`;
+    box.querySelectorAll('[data-rm]').forEach((b) => {
+      b.onclick = async () => {
+        const next = mediaList().filter((_, i) => i !== Number(b.dataset.rm));
+        await saveMediaList(next);
+      };
+    });
+    box.querySelectorAll('[data-mv]').forEach((b) => {
+      b.onclick = async () => {
+        const [idx, dir] = b.dataset.mv.split(':').map(Number);
+        const next = mediaList();
+        const to = idx + dir;
+        if (to < 0 || to >= next.length) return;
+        [next[idx], next[to]] = [next[to], next[idx]];
+        await saveMediaList(next);
+      };
+    });
+    return;
+  }
+
   if (!S.current?.media_key) {
     if (meta.purged) {
       // Explain the missing preview rather than looking like something broke.
@@ -871,6 +928,59 @@ function readMeta(file) {
   });
 }
 
+/** Uploads several files in order and appends them to the post. */
+async function uploadMediaList(files) {
+  if (!S.current || !files.length) return;
+  const dz = $('#dropzone');
+  const items = [...mediaList()];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file.size > 95 * 1024 * 1024) { toast(`${file.name} is ${(file.size / 1048576).toFixed(0)} MB — the limit is 95 MB.`, true, 7000); continue; }
+    dz.innerHTML = `<span class="spin"></span> Uploading ${i + 1} of ${files.length}…`;
+    try {
+      const meta = await readMeta(file);
+      const res = await fetch('/api/media', {
+        method: 'POST',
+        headers: { 'content-type': file.type || 'application/octet-stream', 'x-filename': file.name },
+        body: file,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed.');
+      items.push({ key: data.key, kind: file.type.startsWith('video/') ? 'video' : 'image', meta });
+    } catch (err) {
+      toast(`${file.name}: ${err.message}`, true, 7000);
+    }
+  }
+  dz.innerHTML = '<strong>Drop files here</strong> or click to choose<br><span class="muted">One video, or several images for a carousel. Up to 95 MB each.</span>';
+  await saveMediaList(items);
+}
+
+/** The post's media as an ordered list, however it was stored. */
+function mediaList() {
+  const raw = S.current?.media_items;
+  let items = [];
+  try { items = typeof raw === 'string' ? JSON.parse(raw || '[]') : (raw || []); } catch { items = []; }
+  if (items.length) return items;
+  if (S.current?.media_key) return [{ key: S.current.media_key, kind: S.current.media_kind, meta: parse(S.current.media_meta) }];
+  return [];
+}
+
+async function saveMediaList(items) {
+  const first = items[0];
+  // media_kind describes the post as a whole: a lone video, or images.
+  const kind = !items.length ? 'none' : (items.length === 1 ? first.kind : (items.every((i) => i.kind === 'image') ? 'image' : 'image'));
+  const patch = {
+    media_items: JSON.stringify(items),
+    media_key: items.length === 1 ? first.key : null,
+    media_kind: kind,
+    media_meta: JSON.stringify(first?.meta || {}),
+  };
+  await api(`/posts/${S.current.id}`, { method: 'PATCH', body: { post: patch } });
+  Object.assign(S.current, patch);
+  renderMedia();
+  runAudit();
+}
+
 async function uploadMedia(file) {
   if (!S.current) return;
   if (file.size > 95 * 1024 * 1024) { toast(`That file is ${(file.size / 1048576).toFixed(0)} MB. The limit is 95 MB.`, true, 7000); return; }
@@ -893,15 +1003,15 @@ async function uploadMedia(file) {
   } catch (err) {
     toast(err.message, true, 7000);
   } finally {
-    dz.innerHTML = '<strong>Drop a file here</strong> or click to choose<br><span class="muted">Vertical 1080×1920 for Reels, TikTok and Shorts. Up to 95 MB.</span>';
+    dz.innerHTML = '<strong>Drop files here</strong> or click to choose<br><span class="muted">One video, or several images for a carousel. Up to 95 MB each.</span>';
   }
 }
 
 $('#dropzone').onclick = () => $('#fileInput').click();
-$('#fileInput').onchange = (e) => { if (e.target.files[0]) uploadMedia(e.target.files[0]); e.target.value = ''; };
+$('#fileInput').onchange = (e) => { if (e.target.files.length) uploadMediaList([...e.target.files]); e.target.value = ''; };
 ['dragover', 'dragenter'].forEach((ev) => $('#dropzone').addEventListener(ev, (e) => { e.preventDefault(); $('#dropzone').classList.add('over'); }));
 ['dragleave', 'drop'].forEach((ev) => $('#dropzone').addEventListener(ev, () => $('#dropzone').classList.remove('over')));
-$('#dropzone').addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files[0]) uploadMedia(e.dataTransfer.files[0]); });
+$('#dropzone').addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files.length) uploadMediaList([...e.dataTransfer.files]); });
 
 /* ---------------- when to send ---------------- */
 const whenMode = () => ($('#whenSeg button.on')?.dataset.when || 'later');

@@ -283,6 +283,39 @@ automatically every 10 minutes.
 
 To pull something back, open it and hit **Cancel scheduled posts**.
 
+### Carousels and multi-image posts
+
+Drop in several images and the post becomes a carousel. Reorder or remove
+slides in the media list; that order is the post order. Limits differ sharply
+and the audit holds each platform to its own:
+
+| | Slides | Note |
+|---|---|---|
+| **LinkedIn** | up to 20 | Past about 9 it reads as a dump, so that's where the warning starts. |
+| **Instagram** | up to 10 | The app allows 20, but **every scheduling tool goes through Meta's API, which stops at 10.** Longer carousels have to be posted by hand. |
+| **X** | up to 4 | Hard limit. |
+| **TikTok** | up to 35 | Photo posts. |
+| **YouTube** | — | Video only; extra files are ignored. |
+
+Only Instagram can mix images and video in one carousel. Anywhere else that's
+a blocker, not a warning.
+
+### YouTube: Short or regular video
+
+Each YouTube card has a **Short / Regular video** switch. It picks which rules
+the audit applies — Shorts keep the 3-minute, square-or-taller limits; regular
+videos get the 12-hour ceiling and landscape as the norm.
+
+YouTube classifies by length and shape no matter what you intend, so choosing
+*Regular video* for something vertical and under 3 minutes warns you it'll be
+a Short anyway. Custom thumbnails work on regular videos and not on Shorts.
+
+### X: single post or thread
+
+The **Single post / Thread** switch rebuilds the draft for the shape you pick.
+Single trims to fit 280. Thread keeps the whole argument and splits it into
+numbered posts — the Preview shows the exact split.
+
 ### Previews
 
 Every platform card has an **Edit / Preview** switch. Preview shows roughly how

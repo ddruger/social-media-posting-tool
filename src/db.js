@@ -37,22 +37,40 @@ export async function getJobs(db, postId) {
   return results || [];
 }
 
+/**
+ * Reads a post's media as an ordered list, whichever way it was stored.
+ * Older posts kept a single file in media_key, so that becomes item one.
+ */
+export function mediaItems(post) {
+  if (!post) return [];
+  let items = [];
+  try { items = JSON.parse(post.media_items || '[]'); } catch { items = []; }
+  if (items.length) return items;
+  if (post.media_key) {
+    let meta = {};
+    try { meta = JSON.parse(post.media_meta || '{}'); } catch { /* ignore */ }
+    return [{ key: post.media_key, kind: post.media_kind || 'image', meta }];
+  }
+  return [];
+}
+
 export async function createPost(db, data) {
   const id = newId();
   const ts = nowIso();
   await db.prepare(
     `INSERT INTO posts (id, name, master_caption, link_url, media_key, media_kind, media_meta,
-                        status, scheduled_at, timezone, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+                        media_items, status, scheduled_at, timezone, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   ).bind(
     id, data.name || '', data.master_caption || '', data.link_url || '',
     data.media_key || null, data.media_kind || 'none', JSON.stringify(data.media_meta || {}),
+    JSON.stringify(data.media_items || []),
     'draft', data.scheduled_at || null, data.timezone || 'America/Los_Angeles', ts, ts,
   ).run();
   return id;
 }
 
-const POST_FIELDS = ['name', 'master_caption', 'link_url', 'media_key', 'media_kind', 'media_meta', 'status', 'scheduled_at', 'timezone'];
+const POST_FIELDS = ['name', 'master_caption', 'link_url', 'media_key', 'media_kind', 'media_meta', 'media_items', 'status', 'scheduled_at', 'timezone'];
 
 export async function updatePost(db, id, patch) {
   const sets = [];
@@ -60,7 +78,8 @@ export async function updatePost(db, id, patch) {
   for (const f of POST_FIELDS) {
     if (!(f in patch)) continue;
     sets.push(`${f} = ?`);
-    args.push(f === 'media_meta' && typeof patch[f] !== 'string' ? JSON.stringify(patch[f]) : patch[f]);
+    const isJsonField = f === 'media_meta' || f === 'media_items';
+    args.push(isJsonField && typeof patch[f] !== 'string' ? JSON.stringify(patch[f]) : patch[f]);
   }
   if (!sets.length) return;
   sets.push('updated_at = ?');
