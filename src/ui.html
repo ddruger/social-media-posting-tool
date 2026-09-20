@@ -238,16 +238,26 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
           </div>
           <label class="fld"><span>When to send</span>
             <div class="seg" id="whenSeg">
+              <button type="button" data-when="draft" class="on">Keep as draft</button>
               <button type="button" data-when="now">Publish now</button>
-              <button type="button" data-when="later" class="on">Schedule for later</button>
-              <button type="button" data-when="draft">Send as drafts</button>
+              <button type="button" data-when="later">Schedule for later</button>
             </div>
           </label>
           <label class="fld hide" id="whenWrap"><span>Send at</span><input type="datetime-local" id="fWhen"></label>
           <p class="muted hide" id="nowNote" style="margin:-6px 0 12px">
             Goes out as soon as you press <strong>Audit &amp; publish</strong>. Blocking issues still stop it.
           </p>
-          <div class="muted hide" id="draftNote" style="margin:-6px 0 12px"></div>
+          <p class="muted hide" id="draftNote" style="margin:-6px 0 12px">
+            Nothing is sent and no time is set. It sits in your list until you switch to
+            <strong>Publish now</strong> or <strong>Schedule for later</strong>. The audit still runs, so you can work on it.
+          </p>
+          <label class="fld hide" id="platformDraftWrap" style="display:flex;align-items:center;gap:10px;margin:-2px 0 12px">
+            <span class="switch"><input type="checkbox" id="fPlatformDraft"><span></span></span>
+            <span style="text-transform:none;letter-spacing:0;font-size:13.5px;margin:0;font-weight:500">
+              Send unpublished where the platform allows it
+              <span class="muted">— TikTok as a draft, YouTube as unlisted, so you can tag before going live. The other three can't, and are held back.</span>
+            </span>
+          </label>
           <div class="bar" style="border:0;padding:0 0 12px">
             <button class="btn-sm" id="recomposeBtn">↻ Rebuild every draft from this caption</button>
             <span class="muted">Careful: this replaces any edits you've made below.</span>
@@ -327,6 +337,17 @@ function toLocalInput(iso) {
 }
 const fromLocalInput = (v) => (v ? new Date(v).toISOString() : null);
 
+/** "just now", "3h ago", "2d ago" — enough to find a draft again. */
+function ago(iso) {
+  if (!iso) return 'recently';
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
 /* ---------------- boot ---------------- */
 async function boot() {
   try {
@@ -371,7 +392,9 @@ function renderList() {
   const el = $('#postList');
   if (!S.posts.length) { el.innerHTML = '<p class="muted" style="padding:8px 2px">No posts yet.</p>'; return; }
   el.innerHTML = S.posts.map((p) => {
-    const when = p.scheduled_at ? new Date(p.scheduled_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'no time set';
+    const when = p.scheduled_at
+      ? new Date(p.scheduled_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : `edited ${ago(p.updated_at)}`;
     const title = p.name || (p.master_caption || '').slice(0, 44) || 'Untitled';
     return `<button class="pitem ${S.current?.id === p.id ? 'active' : ''}" data-id="${p.id}">
       <span class="t">${esc(title)}</span>
@@ -400,7 +423,9 @@ async function openPost(id) {
   $('#fLink').value = d.post.link_url || '';
   $('#fWhen').value = toLocalInput(d.post.scheduled_at);
   $('#fTz').value = d.post.timezone || '';
-  setWhenMode(d.post.draft_mode ? 'draft' : (d.post.scheduled_at ? 'later' : 'now'));
+  $('#fPlatformDraft').checked = Boolean(d.post.draft_mode);
+  // A post that has never been sent, with no time on it, is a draft.
+  setWhenMode(d.post.scheduled_at ? 'later' : (d.post.status === 'draft' ? 'draft' : 'now'));
   renderMedia();
   renderPlatforms();
   renderJobs();
@@ -1043,28 +1068,15 @@ function setWhenMode(mode) {
   $('#whenWrap').classList.toggle('hide', mode !== 'later');
   $('#nowNote').classList.toggle('hide', mode !== 'now');
   $('#draftNote').classList.toggle('hide', mode !== 'draft');
-  $('#scheduleBtn').textContent = mode === 'now' ? 'Audit & publish now'
-    : mode === 'draft' ? 'Audit & send drafts'
-    : 'Audit & schedule everywhere';
+  // Sending unpublished only means anything when something is being sent.
+  $('#platformDraftWrap').classList.toggle('hide', mode === 'draft');
 
-  if (mode === 'draft') {
-    // Say plainly which platforms can take a draft and which cannot, because
-    // three of the five genuinely cannot and silence would look like a bug.
-    const can = [], cannot = [];
-    for (const p of (S.platforms || [])) {
-      const v = S.variants.find((x) => x.platform === p);
-      if (!v?.enabled) continue;
-      const d = S.rules[p]?.draft || {};
-      (d.supported ? can : cannot).push({ p, label: S.rules[p]?.label || p, text: d.note || d.reason });
-    }
-    $('#draftNote').innerHTML = `
-      ${can.length ? `<div style="margin-bottom:6px"><strong style="color:var(--good)">Will be sent unpublished:</strong>
-        ${can.map((c) => `${esc(c.label)} — ${esc(c.text)}`).join('<br>')}</div>` : ''}
-      ${cannot.length ? `<div><strong style="color:var(--warn)">Cannot take a draft:</strong>
-        ${cannot.map((c) => `${esc(c.label)} — ${esc(c.text)}`).join('<br>')}<br>
-        These are <strong>held back, not published</strong>. Use <strong>Copy caption</strong> on each card and post them by hand.</div>` : ''}
-      ${!can.length && !cannot.length ? 'Switch on at least one platform.' : ''}`;
-  }
+  const sending = mode !== 'draft';
+  $('#scheduleBtn').classList.toggle('hide', !sending);
+  $('#saveBtn').classList.toggle('btn-primary', !sending);
+  // In draft mode saving IS the action; elsewhere it is the escape hatch.
+  $('#saveBtn').textContent = sending ? 'Save without sending' : 'Save draft';
+  $('#scheduleBtn').textContent = mode === 'now' ? 'Audit & publish now' : 'Audit & schedule everywhere';
 }
 
 $('#whenSeg').querySelectorAll('button').forEach((b) => {
@@ -1083,7 +1095,7 @@ async function save({ silent = false } = {}) {
       master_caption: $('#fMaster').value,
       link_url: $('#fLink').value,
       scheduled_at: chosenSendAt(),
-      draft_mode: whenMode() === 'draft' ? 1 : 0,
+      draft_mode: whenMode() !== 'draft' && $('#fPlatformDraft').checked ? 1 : 0,
       timezone: $('#fTz').value || S.defaultTimezone,
     },
     variants: S.variants.map((v) => ({ ...v, enabled: !!v.enabled })),
@@ -1095,7 +1107,9 @@ async function save({ silent = false } = {}) {
   renderList();
   if (!silent) toast('Saved.');
 }
-$('#saveBtn').onclick = () => save().catch((e) => toast(e.message, true));
+$('#saveBtn').onclick = () => save()
+  .then(() => { if (whenMode() === 'draft') toast('Saved as a draft. Nothing sent.'); })
+  .catch((e) => toast(e.message, true));
 
 $('#scheduleBtn').onclick = async (e) => {
   const btn = e.target;

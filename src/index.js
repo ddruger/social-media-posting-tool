@@ -404,7 +404,13 @@ async function handleApi(request, env, url) {
     }
 
     if (!action && method === 'PATCH') {
-      await db.updatePost(env.DB, id, body.post || {});
+      const patch = { ...(body.post || {}) };
+      // Clearing the send time on a post that never went out returns it to a
+      // draft, so the list reflects what is actually parked.
+      if ('scheduled_at' in patch && !patch.scheduled_at && ['draft', 'scheduled'].includes(post.status)) {
+        patch.status = 'draft';
+      }
+      await db.updatePost(env.DB, id, patch);
       for (const v of body.variants || []) await db.upsertVariant(env.DB, id, v.platform, v);
       return json({ post: await db.getPost(env.DB, id), variants: await db.getVariants(env.DB, id) });
     }
