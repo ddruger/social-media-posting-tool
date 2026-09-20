@@ -9,7 +9,11 @@
  * https://docs.upload-post.com/openapi.json on 2026-09-19.
  */
 
-const BASE = 'https://api.upload-post.com/api';
+const DEFAULT_BASE = 'https://api.upload-post.com/api';
+
+// Overridable so the publish/reconcile flow can be tested against a mock
+// instead of posting to real accounts. Leave it unset in normal use.
+const baseOf = (env) => (env.UPLOADPOST_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
 export class UploadPostError extends Error {
   constructor(message, status, body) {
@@ -28,7 +32,7 @@ function authHeaders(env) {
 }
 
 async function call(env, path, { method = 'GET', form, query } = {}) {
-  const url = new URL(BASE + path);
+  const url = new URL(baseOf(env) + path);
   for (const [k, v] of Object.entries(query || {})) {
     if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
   }

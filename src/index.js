@@ -170,6 +170,7 @@ async function reconcile(env) {
   }
 
   // Roll job states up to their posts.
+  const settings = await db.allSettings(env.DB);
   const postIds = [...new Set(jobs.map((j) => j.post_id))];
   for (const pid of postIds) {
     const all = await db.getJobs(env.DB, pid);
@@ -179,8 +180,30 @@ async function reconcile(env) {
     else if (states.includes('failed') && states.some((s) => s === 'published')) status = 'partial';
     else if (states.length && states.every((s) => s === 'failed')) status = 'failed';
     if (status) await db.updatePost(env.DB, pid, { status });
+    if (status === 'published') await purgeMedia(env, pid, settings);
   }
   return touched;
+}
+
+/**
+ * Once every platform has the video, our copy is dead weight — and R2's free
+ * tier is 10GB, which a weekly posting habit would eventually walk into. So
+ * the file is deleted after a fully successful publish. The post keeps its
+ * dimensions and duration so the record still reads sensibly.
+ *
+ * Turn it off in Settings if you'd rather keep the originals here.
+ */
+async function purgeMedia(env, postId, settings) {
+  if (settings?.keepMediaAfterPublish) return;
+  const post = await db.getPost(env.DB, postId);
+  if (!post?.media_key) return;
+  await env.MEDIA.delete(post.media_key).catch(() => {});
+  let meta = {};
+  try { meta = JSON.parse(post.media_meta || '{}'); } catch { /* keep going */ }
+  await db.updatePost(env.DB, postId, {
+    media_key: null,
+    media_meta: JSON.stringify({ ...meta, purged: true, purgedAt: db.nowIso() }),
+  });
 }
 
 /* -------------------------------------------------------------------------- */

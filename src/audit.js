@@ -626,7 +626,8 @@ export function auditPost(post, variants, settings = {}) {
       media,
       mediaKind: post.media_kind,
       siblings: enabled,
-      hasMedia: Boolean(post.media_key),
+      // A purged post did have its file; it was deleted after publishing.
+      hasMedia: Boolean(post.media_key) || media.purged === true,
       scheduledAt: post.scheduled_at,
       timezone: post.timezone,
       settings,

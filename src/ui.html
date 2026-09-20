@@ -167,6 +167,13 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
             I have X Premium <span class="muted">— raises the X limit from 280 to 25,000 characters</span>
           </span>
         </label>
+        <label class="fld" style="display:flex;align-items:center;gap:10px">
+          <span class="switch"><input type="checkbox" id="setKeepMedia"><span></span></span>
+          <span style="text-transform:none;letter-spacing:0;font-size:14px;margin:0;font-weight:500">
+            Keep videos after posting
+            <span class="muted">— off by default, so published videos are deleted from storage and you stay inside Cloudflare's free 10&nbsp;GB</span>
+          </span>
+        </label>
         <label class="fld"><span>Default timezone</span><input type="text" id="setTz" placeholder="America/Los_Angeles"></label>
         <div class="bar" style="border:0;padding-top:4px">
           <button class="btn-primary btn-sm" id="saveSettings">Save settings</button>
@@ -281,6 +288,7 @@ async function boot() {
     $('#profileTag').textContent = st.profile ? `profile: ${st.profile}` : 'no Upload-Post profile set';
     $('#rulesNote').textContent = `Best-practice rules last reviewed ${st.rulesReviewed}. They live in src/rules.js — edit the numbers there when a platform changes.`;
     $('#setXPremium').checked = !!st.settings.xPremium;
+    $('#setKeepMedia').checked = !!st.settings.keepMediaAfterPublish;
     $('#setTz').value = st.settings.timezone || st.defaultTimezone || '';
     renderList();
   } catch (err) {
@@ -537,7 +545,20 @@ async function aiRewrite(platform, btn) {
 function renderMedia() {
   const box = $('#mediaInfo');
   const meta = parse(S.current?.media_meta);
-  if (!S.current?.media_key) { box.classList.add('hide'); return; }
+  if (!S.current?.media_key) {
+    if (meta.purged) {
+      // Explain the missing preview rather than looking like something broke.
+      box.classList.remove('hide');
+      const d = meta.durationSec ? `${meta.durationSec.toFixed(0)}s · ` : '';
+      const wh = meta.width ? `${meta.width}×${meta.height}` : '';
+      box.innerHTML = `<div><div style="font-weight:600">${esc(meta.name || 'Video')} — posted, then removed from storage</div>
+        <div class="muted">${esc(d + wh)} · It's live on the platforms; the copy here was deleted to keep storage free.
+        Turn this off in Settings.</div></div>`;
+    } else {
+      box.classList.add('hide');
+    }
+    return;
+  }
   box.classList.remove('hide');
   const url = `/m/${S.current.media_key}`;
   const preview = S.current.media_kind === 'video'
@@ -716,8 +737,9 @@ $('#connectBtn').onclick = async () => {
 $('#settingsBtn').onclick = () => $('#settingsPane').classList.toggle('hide');
 $('#closeSettings').onclick = () => $('#settingsPane').classList.add('hide');
 $('#saveSettings').onclick = async () => {
-  await api('/settings', { method: 'POST', body: { xPremium: $('#setXPremium').checked, timezone: $('#setTz').value } });
+  await api('/settings', { method: 'POST', body: { xPremium: $('#setXPremium').checked, keepMediaAfterPublish: $('#setKeepMedia').checked, timezone: $('#setTz').value } });
   S.settings.xPremium = $('#setXPremium').checked;
+  S.settings.keepMediaAfterPublish = $('#setKeepMedia').checked;
   S.settings.timezone = $('#setTz').value;
   toast('Settings saved.');
   runAudit();
