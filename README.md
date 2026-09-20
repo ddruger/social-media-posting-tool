@@ -2,19 +2,26 @@
 
 **Write once, audit against each platform's best practices, schedule everywhere.**
 
-Posts to LinkedIn, X, Instagram, TikTok and YouTube Shorts. Runs on Cloudflare's
-free tier. Setup takes about 20 minutes and is written for non-developers —
-every step is a command to copy and paste.
+Write the caption once. Get five platform-native versions — LinkedIn, X,
+Instagram, TikTok and YouTube Shorts. Each one audited against that platform's
+current rules before it goes out. Then schedule all five in one click.
 
----
+Replaces uploading the same video five times, rewriting the caption five times,
+and scheduling natively in five different apps.
 
-Write the caption once. Get five platform-native versions. Audit them against
-each platform's current best practices. Schedule them all in one click.
+## Install it
 
-Replaces: uploading the same video five times, rewriting the caption five
-times, and scheduling natively in five different apps.
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ddruger/social-media-posting-tool)
 
-Covers LinkedIn, X, Instagram, TikTok and YouTube Shorts.
+**↑ Click that.** Cloudflare copies this code to your own GitHub, builds it,
+creates its database and video storage, and gives you a web address to log
+into. No terminal, nothing to install, about five minutes.
+
+It asks you for a few things along the way — see
+[Setup](#setup) for exactly what and where to get it.
+
+Runs free: Cloudflare's free tier covers it, and the posting service has a free
+plan.
 
 ---
 
@@ -58,14 +65,43 @@ does not need to be on.
 
 ## Setup
 
-### The easy way — one button, no Terminal
+### First — what the two accounts are for
+
+This tool needs two services behind it. Neither is optional, and it's worth
+knowing what each one does before you sign up.
+
+**Cloudflare — where the tool itself lives.**
+Social Studio is a small web app, and Cloudflare hosts it. This is where your
+posts, captions and videos are stored while they wait to go out. Free tier
+covers everything here comfortably. You already have an account.
+
+**Upload-Post — the thing that actually posts.**
+Getting a video onto LinkedIn, X, Instagram, TikTok and YouTube from outside
+those apps normally means registering as a developer with all five, each with
+its own approval process — Meta's review alone takes weeks, and X charges for
+API access. [Upload-Post](https://upload-post.com) has already done all of
+that. You connect your accounts to them once, and they hand this tool a single
+key that posts to all five.
+
+Practically: it's the difference between five developer applications and one
+signup. Free for 10 posts a month, $24/month unlimited.
+
+**Worth being clear about the tradeoff:** Upload-Post is a small third-party
+company, and connecting your accounts gives them permission to post as you on
+all five platforms. That's the same deal as any scheduling tool — Buffer,
+Later, Hootsuite all work this way — but it is a real decision and you should
+make it deliberately rather than because a README told you to. You can revoke
+access at any time from each platform's own settings, and you can delete the
+connection from their dashboard.
+
+### Then — click the button
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ddruger/social-media-posting-tool)
 
-Click that button. Cloudflare copies this repo into your own GitHub, creates
-the database and media storage for you, asks for your keys on a single page,
-then builds and deploys it. You get a URL to log into. No terminal, no
-commands, nothing to install.
+Cloudflare copies this repo into your own GitHub, creates the database and
+media storage for you, asks for your keys on a single page, then builds and
+deploys it. You get a URL to log into. No terminal, no commands, nothing to
+install.
 
 **Have these two ready before you click**, because it asks for them:
 
