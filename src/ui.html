@@ -425,13 +425,23 @@ function renderPlatforms() {
         <div class="score" data-score></div>
       </div>
       <div class="plat-body">
-        <div class="seg seg-sm" data-view>
-          <button type="button" data-v="edit" class="on">Edit</button>
-          <button type="button" data-v="preview">Preview</button>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+          <div class="seg seg-sm" data-view style="margin:0">
+            <button type="button" data-v="edit" class="on">Edit</button>
+            <button type="button" data-v="preview">Preview</button>
+          </div>
+          ${p === 'youtube' ? `<div class="seg seg-sm" data-mode="youtube_format" style="margin:0">
+            <button type="button" data-val="short" class="${(parse(v.options).youtube_format || 'short') === 'short' ? 'on' : ''}">Short</button>
+            <button type="button" data-val="video" class="${parse(v.options).youtube_format === 'video' ? 'on' : ''}">Regular video</button>
+          </div>` : ''}
+          ${p === 'x' ? `<div class="seg seg-sm" data-mode="thread" style="margin:0">
+            <button type="button" data-val="single" class="${parse(v.options).thread ? '' : 'on'}">Single post</button>
+            <button type="button" data-val="thread" class="${parse(v.options).thread ? 'on' : ''}">Thread</button>
+          </div>` : ''}
         </div>
         <div data-preview class="hide"></div>
         <div data-edit>
-        ${p === 'youtube' ? `<label class="fld"><span>Title — only ~40 characters show in the feed</span>
+        ${p === 'youtube' ? `<label class="fld"><span>Title${parse(v.options).youtube_format === 'video' ? '' : ' — only ~40 characters show in the feed'}</span>
           <input type="text" data-f="headline" value="${esc(v.headline)}" maxlength="120"></label>` : ''}
         <label class="fld"><span>${p === 'youtube' ? 'Description' : 'Caption'}</span>
           <textarea data-f="body" rows="${p === 'x' ? 4 : 7}">${esc(v.body)}</textarea></label>
@@ -477,6 +487,41 @@ function renderPlatforms() {
     card.querySelectorAll('[data-view] button').forEach((b) => {
       b.onclick = () => showView(card, b.dataset.v);
     });
+    card.querySelectorAll('[data-mode]').forEach((seg) => {
+      const field = seg.dataset.mode;
+      seg.querySelectorAll('button').forEach((b) => {
+        b.onclick = async () => {
+          const opts = parse(v.options);
+          if (field === 'thread') {
+            const on = b.dataset.val === 'thread';
+            opts.thread = on;
+            opts.x_long_text_as_post = false;
+            // Rebuild the draft for the chosen shape: a thread keeps the whole
+            // argument, a single post is trimmed to fit 280.
+            const r = await api('/compose', {
+              method: 'POST',
+              body: {
+                master: $('#fMaster').value, link_url: $('#fLink').value,
+                media_kind: S.current?.media_kind || 'none', only: ['x'],
+                opts: { xThread: on },
+              },
+            });
+            if (r.variants?.x) {
+              v.body = r.variants.x.body;
+              v.hashtags = JSON.stringify(r.variants.x.hashtags || []);
+            }
+          } else {
+            opts[field] = b.dataset.val;
+          }
+          v.options = JSON.stringify(opts);
+          S.dirty = true;
+          renderPlatforms();
+          await runAudit();
+          const again = $(`.plat[data-p="${p}"]`);
+          if (again) showView(again, 'preview');
+        };
+      });
+    });
     card.querySelector('[data-act=rewrite]').onclick = (e) => aiRewrite(p, e.target);
     card.querySelector('[data-act=recompose-one]').onclick = () => recompose([p]);
   });
@@ -521,6 +566,23 @@ function mediaBlock(vertical) {
   return `<div class="${cls}">${inner}</div>`;
 }
 
+/** Mirrors the server's thread split so the preview tracks live edits. */
+function splitForPreview(text, cap = 280) {
+  const sents = (text || '').split(/(?<=[.!?])\s+|\n+/).map((t) => t.trim()).filter(Boolean);
+  const parts = [];
+  let cur = '';
+  const weigh = (t) => {
+    const urls = t.match(/https?:\/\/[^\s]+/g) || [];
+    return [...t.replace(/https?:\/\/[^\s]+/g, '')].length + urls.length * 23;
+  };
+  for (const sent of sents) {
+    const next = cur ? `${cur} ${sent}` : sent;
+    if (weigh(next) > cap - 6 && cur) { parts.push(cur); cur = sent; } else { cur = next; }
+  }
+  if (cur) parts.push(cur);
+  return parts.length > 1 ? parts.map((t, i) => `${t} ${i + 1}/${parts.length}`) : parts;
+}
+
 function previewFor(platform) {
   const v = variantOf(platform);
   const r = S.rules[platform] || {};
@@ -547,8 +609,8 @@ function previewFor(platform) {
 
   if (platform === 'x') {
     const opts = parse(v.options);
-    const thread = opts.thread ? (v._thread || []) : [];
-    const posts = thread.length > 1 ? thread : [body];
+    const split = opts.thread ? splitForPreview(body) : [];
+    const posts = split.length > 1 ? split : [body];
     return `<div class="pv">
       ${posts.map((part, i) => `
         <div class="${i ? 'pv-thread' : ''}">
@@ -583,8 +645,24 @@ function previewFor(platform) {
   }
 
   if (platform === 'youtube') {
-    const m = mediaBlock(true);
     const title = v.headline || '';
+    const longForm = parse(v.options).youtube_format === 'video';
+
+    if (longForm) {
+      // A regular upload is a landscape player with the title beneath it.
+      const m = mediaBlock(false);
+      return `<div class="pv">
+        ${m || '<div class="pv-media" style="min-height:200px">Upload a video</div>'}
+        <div class="pv-body" style="font-weight:600;font-size:16px;padding-top:12px">${esc(title) || '<span class="pv-more">no title yet</span>'}</div>
+        <div class="pv-head" style="padding-top:2px">${av}<div class="pv-who">
+          <div class="pv-name">${esc(name)}</div>
+          <div class="pv-sub">No views · now</div></div></div>
+        <div class="pv-body" style="font-size:13.5px;color:var(--muted)">${folded(body, r.foldChars)}</div>
+      </div>
+      <p class="pv-note">A regular upload: the full title shows, and a custom thumbnail is available (Shorts have neither).</p>`;
+    }
+
+    const m = mediaBlock(true);
     const visible = [...title].slice(0, r.titleVisibleChars).join('');
     const rest = [...title].slice(r.titleVisibleChars).join('');
     return `<div class="pv">

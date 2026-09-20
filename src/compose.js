@@ -159,12 +159,26 @@ function composeLinkedIn(clean, tags, link, mediaKind) {
   };
 }
 
-function composeX(clean, tags, link, mediaKind) {
+function composeX(clean, tags, link, mediaKind, opts = {}) {
   const r = RULES.x;
   const stripped = stripUrls(clean);
   const sents = sentencesOf(stripped);
   const picked = tags.slice(0, r.hashtags.max);
   const suffix = (link ? `\n\n${link}` : '') + (picked.length ? `\n\n${picked.map((t) => `#${t}`).join(' ')}` : '');
+
+  // In thread mode the 280-character ceiling does not apply, so keep the whole
+  // argument — trimming it to one post is exactly what threading is for.
+  if (opts.xThread) {
+    const full = (stripped + suffix).trim();
+    return {
+      body: full,
+      headline: '',
+      first_comment: '',
+      hashtags: picked,
+      options: { x_long_text_as_post: false, thread: true },
+      _thread: splitThread(stripped, link),
+    };
+  }
 
   // Build up sentence by sentence while it still fits in one post.
   let body = '';
@@ -284,7 +298,7 @@ const COMPOSERS = {
  * @param {string} mediaKind 'video' | 'image' | 'none'
  * @param {string[]} only   limit to these platforms (default: all of them)
  */
-export function compose(master, linkUrl = '', mediaKind = 'none', only = null) {
+export function compose(master, linkUrl = '', mediaKind = 'none', only = null, opts = {}) {
   const { body: clean, tags } = splitTrailingHashtags(master || '');
   // A link typed into the caption counts as the post's link if none was given.
   const link = linkUrl || urlsIn(master || '')[0] || '';
@@ -294,7 +308,7 @@ export function compose(master, linkUrl = '', mediaKind = 'none', only = null) {
 
   const out = {};
   for (const p of platforms) {
-    if (COMPOSERS[p]) out[p] = COMPOSERS[p](clean, allTags, link, mediaKind);
+    if (COMPOSERS[p]) out[p] = COMPOSERS[p](clean, allTags, link, mediaKind, opts);
   }
   return out;
 }

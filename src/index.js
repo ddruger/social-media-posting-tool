@@ -284,7 +284,7 @@ async function handleApi(request, env, url) {
 
   /* ---- live compose + audit (nothing saved) ---- */
   if (path === '/compose' && method === 'POST') {
-    return json({ variants: compose(body.master || '', body.link_url || '', body.media_kind || 'none', body.only || null) });
+    return json({ variants: compose(body.master || '', body.link_url || '', body.media_kind || 'none', body.only || null, body.opts || {}) });
   }
 
   if (path === '/audit' && method === 'POST') {

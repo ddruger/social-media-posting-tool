@@ -200,6 +200,20 @@ export const RULES = {
     resolution: { width: 1080, height: 1920 },
     // [OFFICIAL] Classification is automatic, so the tag only eats title space.
     shortsTagUnnecessary: true,
+
+    // A regular upload, when you deliberately do NOT want a Short. YouTube
+    // decides by length and shape, so this is really about which set of rules
+    // the audit should hold you to.
+    longForm: {
+      label: 'YouTube video',
+      // [OFFICIAL] 12 hours / 256GB for a verified account.
+      maxSeconds: 43200,
+      // [SOFT] Landscape is the norm outside the Shorts feed.
+      aspect: { preferred: [[16, 9]], tolerated: [[1, 1], [4, 5], [9, 16]] },
+      resolution: { width: 1920, height: 1080 },
+      // [OFFICIAL] Custom thumbnails work on regular videos but not Shorts.
+      thumbnailSupported: true,
+    },
   },
 };
 

@@ -501,6 +501,11 @@ function auditTikTok(v, ctx, f) {
 
 function auditYouTube(v, ctx, f) {
   const r = RULES.youtube;
+  const opts = safeJson(v.options);
+  // 'short' holds you to the Shorts rules; 'video' is a regular upload where
+  // length and landscape are fine. YouTube itself classifies by length and
+  // shape — this decides which rules the audit applies.
+  const longForm = opts.youtube_format === 'video';
   const title = v.headline || '';
   const desc = v.body || '';
 
@@ -538,10 +543,34 @@ function auditYouTube(v, ctx, f) {
 
   hashtagChecks(collectTags(v, desc), r, f, 'YouTube');
   emojiChecks(desc, r, f);
-  mediaChecks('youtube', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
 
-  if (ctx.mediaKind === 'video' && ctx.media?.durationSec && ctx.media.durationSec <= r.video.maxSeconds && ctx.media?.width && ctx.media?.height && ctx.media.height >= ctx.media.width) {
-    f.push(ok('yt-qualifies', 'Qualifies as a Short', `Square-or-taller and ${ctx.media.durationSec.toFixed(0)}s — YouTube will classify this as a Short automatically.`));
+  const dur = ctx.media?.durationSec;
+  const w = ctx.media?.width;
+  const h = ctx.media?.height;
+  const vertical = w && h ? h >= w : null;
+
+  if (longForm) {
+    // Hold it to the regular-video rules instead of the Shorts ones.
+    const lf = r.longForm;
+    mediaChecks('youtube', { ...r, label: lf.label, video: { maxSeconds: lf.maxSeconds }, aspect: lf.aspect, resolution: lf.resolution },
+      ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
+    if (typeof dur === 'number' && dur > 0 && dur <= r.video.maxSeconds && vertical) {
+      f.push(warn(
+        'yt-would-be-short',
+        'This will become a Short anyway',
+        `${dur.toFixed(0)}s and square-or-taller, so YouTube classifies it as a Short whatever you intend. Make it longer than ${r.video.maxSeconds}s or landscape to publish it as a regular video.`,
+      ));
+    } else if (typeof dur === 'number' && dur > 0) {
+      f.push(ok('yt-longform', 'Will publish as a regular video', `${(dur / 60).toFixed(1)} min${vertical === false ? ', landscape' : ''} — outside the Shorts criteria, so it lands on your channel as a normal upload.`));
+    }
+    if (lf.thumbnailSupported && !safeJson(v.options).thumbnail_url) {
+      f.push(tip('yt-thumb', 'No custom thumbnail', 'Regular videos support one and it is the main thing people click. Shorts do not.'));
+    }
+  } else {
+    mediaChecks('youtube', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
+    if (ctx.mediaKind === 'video' && dur && dur <= r.video.maxSeconds && vertical) {
+      f.push(ok('yt-qualifies', 'Qualifies as a Short', `Square-or-taller and ${dur.toFixed(0)}s — YouTube will classify this as a Short automatically.`));
+    }
   }
 }
 
