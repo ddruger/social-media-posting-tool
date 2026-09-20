@@ -76,6 +76,7 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
 .pill.draft{color:var(--muted)}
 .pill.scheduled{color:var(--accent);border-color:var(--accent)}
 .pill.published{color:var(--good);border-color:var(--good)}
+.pill.drafted{color:var(--warn);border-color:var(--warn)}
 .pill.failed,.pill.partial{color:var(--bad);border-color:var(--bad)}
 
 /* platform cards */
@@ -239,12 +240,14 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
             <div class="seg" id="whenSeg">
               <button type="button" data-when="now">Publish now</button>
               <button type="button" data-when="later" class="on">Schedule for later</button>
+              <button type="button" data-when="draft">Send as drafts</button>
             </div>
           </label>
           <label class="fld hide" id="whenWrap"><span>Send at</span><input type="datetime-local" id="fWhen"></label>
           <p class="muted hide" id="nowNote" style="margin:-6px 0 12px">
             Goes out as soon as you press <strong>Audit &amp; publish</strong>. Blocking issues still stop it.
           </p>
+          <div class="muted hide" id="draftNote" style="margin:-6px 0 12px"></div>
           <div class="bar" style="border:0;padding:0 0 12px">
             <button class="btn-sm" id="recomposeBtn">↻ Rebuild every draft from this caption</button>
             <span class="muted">Careful: this replaces any edits you've made below.</span>
@@ -397,7 +400,7 @@ async function openPost(id) {
   $('#fLink').value = d.post.link_url || '';
   $('#fWhen').value = toLocalInput(d.post.scheduled_at);
   $('#fTz').value = d.post.timezone || '';
-  setWhenMode(d.post.scheduled_at ? 'later' : 'now');
+  setWhenMode(d.post.draft_mode ? 'draft' : (d.post.scheduled_at ? 'later' : 'now'));
   renderMedia();
   renderPlatforms();
   renderJobs();
@@ -457,6 +460,7 @@ function renderPlatforms() {
         <div class="bar" style="border:0;padding:4px 0 10px">
           <button class="btn-sm" data-act="rewrite"${S.hasAi ? '' : ' disabled title="Needs an Anthropic API key. Add ANTHROPIC_API_KEY in Cloudflare: your Worker → Settings → Variables and Secrets. Everything else works without it."'}>✨ Rewrite with AI in your voice</button>
           <button class="btn-sm" data-act="recompose-one">↻ Rebuild from caption</button>
+          <button class="btn-sm" data-act="copy">📋 Copy caption</button>
         </div>
         </div>
         <div data-findings></div>
@@ -482,7 +486,9 @@ function renderPlatforms() {
     card.querySelector('[data-act=toggle]').onchange = (e) => {
       v.enabled = e.target.checked ? 1 : 0;
       card.classList.toggle('off', !e.target.checked);
-      S.dirty = true; liveAudit();
+      S.dirty = true;
+      if (whenMode() === 'draft') setWhenMode('draft');
+      liveAudit();
     };
     card.querySelectorAll('[data-view] button').forEach((b) => {
       b.onclick = () => showView(card, b.dataset.v);
@@ -524,6 +530,22 @@ function renderPlatforms() {
     });
     card.querySelector('[data-act=rewrite]').onclick = (e) => aiRewrite(p, e.target);
     card.querySelector('[data-act=recompose-one]').onclick = () => recompose([p]);
+    card.querySelector('[data-act=copy]').onclick = async () => {
+      const tags = parse(v.hashtags);
+      const parts = [];
+      if (v.headline) parts.push(v.headline);
+      parts.push(v.body || '');
+      if (Array.isArray(tags) && tags.length && !/#/.test(v.body || '')) parts.push(tags.map((t) => `#${t}`).join(' '));
+      if (v.first_comment) parts.push(`\n--- first comment ---\n${v.first_comment}`);
+      const text = parts.filter(Boolean).join('\n\n');
+      try {
+        await navigator.clipboard.writeText(text);
+        toast(`${S.rules[p]?.label || p} caption copied — paste it into the app.`);
+      } catch {
+        // Clipboard access can be refused; show it so it can still be copied.
+        prompt('Copy this:', text);
+      }
+    };
   });
 }
 
@@ -1018,9 +1040,31 @@ const whenMode = () => ($('#whenSeg button.on')?.dataset.when || 'later');
 
 function setWhenMode(mode) {
   $('#whenSeg').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.when === mode));
-  $('#whenWrap').classList.toggle('hide', mode === 'now');
+  $('#whenWrap').classList.toggle('hide', mode !== 'later');
   $('#nowNote').classList.toggle('hide', mode !== 'now');
-  $('#scheduleBtn').textContent = mode === 'now' ? 'Audit & publish now' : 'Audit & schedule everywhere';
+  $('#draftNote').classList.toggle('hide', mode !== 'draft');
+  $('#scheduleBtn').textContent = mode === 'now' ? 'Audit & publish now'
+    : mode === 'draft' ? 'Audit & send drafts'
+    : 'Audit & schedule everywhere';
+
+  if (mode === 'draft') {
+    // Say plainly which platforms can take a draft and which cannot, because
+    // three of the five genuinely cannot and silence would look like a bug.
+    const can = [], cannot = [];
+    for (const p of (S.platforms || [])) {
+      const v = S.variants.find((x) => x.platform === p);
+      if (!v?.enabled) continue;
+      const d = S.rules[p]?.draft || {};
+      (d.supported ? can : cannot).push({ p, label: S.rules[p]?.label || p, text: d.note || d.reason });
+    }
+    $('#draftNote').innerHTML = `
+      ${can.length ? `<div style="margin-bottom:6px"><strong style="color:var(--good)">Will be sent unpublished:</strong>
+        ${can.map((c) => `${esc(c.label)} — ${esc(c.text)}`).join('<br>')}</div>` : ''}
+      ${cannot.length ? `<div><strong style="color:var(--warn)">Cannot take a draft:</strong>
+        ${cannot.map((c) => `${esc(c.label)} — ${esc(c.text)}`).join('<br>')}<br>
+        These are <strong>held back, not published</strong>. Use <strong>Copy caption</strong> on each card and post them by hand.</div>` : ''}
+      ${!can.length && !cannot.length ? 'Switch on at least one platform.' : ''}`;
+  }
 }
 
 $('#whenSeg').querySelectorAll('button').forEach((b) => {
@@ -1028,7 +1072,7 @@ $('#whenSeg').querySelectorAll('button').forEach((b) => {
 });
 
 /** null means "send immediately" all the way through to the API. */
-const chosenSendAt = () => (whenMode() === 'now' ? null : fromLocalInput($('#fWhen').value));
+const chosenSendAt = () => (whenMode() === 'later' ? fromLocalInput($('#fWhen').value) : null);
 
 /* ---------------- save / schedule ---------------- */
 async function save({ silent = false } = {}) {
@@ -1039,6 +1083,7 @@ async function save({ silent = false } = {}) {
       master_caption: $('#fMaster').value,
       link_url: $('#fLink').value,
       scheduled_at: chosenSendAt(),
+      draft_mode: whenMode() === 'draft' ? 1 : 0,
       timezone: $('#fTz').value || S.defaultTimezone,
     },
     variants: S.variants.map((v) => ({ ...v, enabled: !!v.enabled })),
@@ -1060,9 +1105,16 @@ $('#scheduleBtn').onclick = async (e) => {
   try {
     await save({ silent: true });
     const res = await api(`/posts/${S.current.id}/schedule`, { method: 'POST', body: {} });
-    toast(res.status === 'scheduled'
-      ? 'Scheduled on every platform you switched on.'
-      : 'Sent. Platforms take a minute or two — use Refresh status.');
+    if (res.draftMode) {
+      const held = (res.heldBack || []).map((h) => h.label).join(' and ');
+      toast(held
+        ? `Drafts sent. ${held} can't take a draft — held back, copy and post by hand.`
+        : 'Drafts sent. Go and tag them, then publish from the app.', false, 9000);
+    } else {
+      toast(res.status === 'scheduled'
+        ? 'Scheduled on every platform you switched on.'
+        : 'Sent. Platforms take a minute or two — use Refresh status.');
+    }
     await openPost(S.current.id);
   } catch (err) {
     if (err.status === 409) {

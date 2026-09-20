@@ -12,6 +12,7 @@
 import UI from './ui.html';
 import SCHEMA from '../migrations/0001_initial.sql';
 import MIGRATION_0002 from '../migrations/0002_carousel.sql';
+import MIGRATION_0003 from '../migrations/0003_draft_mode.sql';
 import { PLATFORMS, RULES, LAST_REVIEWED, BEST_TIMES } from './rules.js';
 import { auditPost, auditVariant } from './audit.js';
 import { compose, applyFix } from './compose.js';
@@ -57,7 +58,7 @@ async function ensureSchema(env) {
 
   // Later migrations are ALTER TABLE, which has no IF NOT EXISTS in SQLite.
   // Run them one at a time and ignore the "already there" failure.
-  for (const line of sqlStatements(MIGRATION_0002)) {
+  for (const line of [...sqlStatements(MIGRATION_0002), ...sqlStatements(MIGRATION_0003)]) {
     try {
       await env.DB.prepare(line).run();
     } catch (err) {
@@ -108,8 +109,26 @@ async function schedulePost(env, request, postId, { force = false } = {}) {
   if (!post) return bad('That post no longer exists.', 404);
 
   const variants = await db.getVariants(env.DB, postId);
-  const enabled = variants.filter((v) => v.enabled);
+  const draftMode = Boolean(post.draft_mode);
+  let enabled = variants.filter((v) => v.enabled);
   if (!enabled.length) return bad('No platforms are switched on for this post.');
+
+  // In draft mode only the platforms that can actually receive something
+  // unpublished are sent. Publishing the rest live would be the opposite of
+  // what was asked for, so they are held back and reported instead.
+  let heldBack = [];
+  if (draftMode) {
+    heldBack = enabled.filter((v) => !RULES[v.platform]?.draft?.supported).map((v) => v.platform);
+    enabled = enabled.filter((v) => RULES[v.platform]?.draft?.supported);
+    if (!enabled.length) {
+      return bad(
+        'None of the platforms you picked can accept a draft. '
+        + heldBack.map((p) => `${RULES[p]?.label || p}: ${RULES[p]?.draft?.reason}`).join(' ')
+        + ' Use Copy caption on each card and post those by hand.',
+        409,
+      );
+    }
+  }
 
   const settings = await db.allSettings(env.DB);
   const items = db.mediaItems(post);
@@ -147,6 +166,7 @@ async function schedulePost(env, request, postId, { force = false } = {}) {
         sendAt: sendAt === 'now' ? null : sendAt,
         linkUrl: post.link_url,
         timezone: post.timezone,
+        draft: draftMode,
       });
       const id = await db.createJob(env.DB, {
         postId, platforms, jobId: res.jobId, requestId: res.requestId,
@@ -164,11 +184,20 @@ async function schedulePost(env, request, postId, { force = false } = {}) {
     }
   }
 
-  const status = failures.length === 0 ? (post.scheduled_at ? 'scheduled' : 'published')
+  const status = failures.length === 0 ? (post.scheduled_at ? 'scheduled' : (draftMode ? 'drafted' : 'published'))
     : created.length ? 'partial' : 'failed';
   await db.updatePost(env.DB, postId, { status });
 
-  return json({ ok: failures.length === 0, status, jobs: created, failures, audit: result });
+  return json({
+    ok: failures.length === 0,
+    status,
+    draftMode,
+    jobs: created,
+    failures,
+    // Named so the UI can say exactly which ones still need posting by hand.
+    heldBack: heldBack.map((p) => ({ platform: p, label: RULES[p]?.label || p, reason: RULES[p]?.draft?.reason })),
+    audit: result,
+  });
 }
 
 /** Asks Upload-Post what actually happened to each open job. */
@@ -210,7 +239,10 @@ async function reconcile(env) {
     else if (states.includes('failed') && states.some((s) => s === 'published')) status = 'partial';
     else if (states.length && states.every((s) => s === 'failed')) status = 'failed';
     if (status) await db.updatePost(env.DB, pid, { status });
-    if (status === 'published') await purgeMedia(env, pid, settings);
+    // Only a genuinely published post is finished with its files. A draft
+    // still needs them when you go in to tag and publish.
+    const p = await db.getPost(env.DB, pid);
+    if (status === 'published' && !p?.draft_mode) await purgeMedia(env, pid, settings);
   }
   return touched;
 }

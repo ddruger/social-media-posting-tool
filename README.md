@@ -316,6 +316,40 @@ The **Single post / Thread** switch rebuilds the draft for the shape you pick.
 Single trims to fit 280. Thread keeps the whole argument and splits it into
 numbered posts — the Preview shows the exact split.
 
+### Drafts — post unpublished so you can tag people
+
+Pick **Send as drafts** instead of publishing. Useful because @mentions that
+need to link (especially on LinkedIn) have to be typed in the app itself.
+
+Only two of the five can receive something unpublished, and this is a platform
+limitation rather than a gap in the tool:
+
+| | Draft? | What happens |
+|---|---|---|
+| **TikTok** | Yes | Lands in your TikTok drafts. Edit, tag, publish from the app. |
+| **YouTube** | Effectively | Uploads **unlisted** — YouTube has no draft for an uploaded video, but unlisted is the working equivalent. Edit it, then set it public. |
+| **LinkedIn** | No | LinkedIn drafts exist only in the app; no API can create one. |
+| **X** | No | No draft for regular posts. |
+| **Instagram** | No | No draft state at all. |
+
+**The three that can't are held back, not published.** The tool tells you which,
+and every platform card has a **Copy caption** button so you can paste the
+finished draft into the app and post it by hand.
+
+Media is kept for drafted posts — the auto-cleanup only runs once something has
+genuinely published.
+
+### On tagging people
+
+`@mentions` work as you'd expect on **X, Instagram, TikTok and YouTube** — type
+`@handle` and it links.
+
+**LinkedIn is the exception.** Its API needs a mention encoded as
+`@[Name](urn:li:person:xxxx)` — an internal ID you can't reasonably look up. A
+plain `@Daniel` publishes as text: no link, no notification. That's true of
+every scheduling tool. If a LinkedIn mention matters, send that post as a draft
+or copy it across and post natively.
+
 ### Previews
 
 Every platform card has an **Edit / Preview** switch. Preview shows roughly how

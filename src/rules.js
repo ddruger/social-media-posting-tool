@@ -55,6 +55,9 @@ export const RULES = {
     // commonly cap at 9, and past that the gallery reads as a dump, so 9 is
     // the advised ceiling and 20 the hard one.
     carousel: { min: 2, max: 9, hardMax: 20 },
+    // [OFFICIAL] LinkedIn's API cannot create a draft. Drafts exist in the
+    // LinkedIn UI only — nothing published through an API can land in them.
+    draft: { supported: false, reason: 'LinkedIn drafts exist only in the app; the API cannot create one.' },
     outboundLinkReachCost: 0.188,
     // [STUDY] Same report: LinkedIn now suppresses COMMENTS containing
     // external links by up to 80%, and detects "bridge behaviour" where a
@@ -86,6 +89,9 @@ export const RULES = {
     // characters, however long the real link is. Media costs nothing.
     // [OFFICIAL] Four images per post, hard.
     carousel: { min: 2, max: 4, hardMax: 4 },
+    // [OFFICIAL] No draft for a normal post. (Articles have a draft flag,
+    // which is a different thing entirely.)
+    draft: { supported: false, reason: 'X has no draft for regular posts over the API.' },
     urlCharCost: 23,
     // [STUDY/SOFT] 71–100 characters remains the most-cited high-engagement
     // band and is still repeated across 2026 analyses. The original is an
@@ -124,6 +130,8 @@ export const RULES = {
     // have to be posted by hand.
     carousel: { min: 2, max: 10, hardMax: 10 },
     carouselApiCapBelowApp: 20,
+    // [OFFICIAL] The Content Publishing API publishes; there is no draft state.
+    draft: { supported: false, reason: 'Instagram has no draft state over the API.' },
     hashtagCapIsPlatformEnforced: true,
     emoji: { max: 10 },
     // [OFFICIAL] URLs in captions are plain text — not clickable.
@@ -154,6 +162,9 @@ export const RULES = {
     maxChars: 2200,
     // [OFFICIAL] Photo posts take up to 35 images.
     carousel: { min: 2, max: 35, hardMax: 35 },
+    // [OFFICIAL] post_mode=MEDIA_UPLOAD lands in your TikTok drafts, where you
+    // can edit and tag before publishing. A real draft.
+    draft: { supported: true, kind: 'draft', note: 'Lands in your TikTok inbox as a draft.' },
     appCaptionLimit: 4000,
     apiLimitDiffersFromApp: true,
     // [SOFT] Roughly what shows over the video before "more".
@@ -212,6 +223,10 @@ export const RULES = {
     aspect: { required: [[9, 16]], tolerated: [[1, 1], [4, 5]] },
     resolution: { width: 1080, height: 1920 },
     // [OFFICIAL] Classification is automatic, so the tag only eats title space.
+    // [OFFICIAL] YouTube has no draft for an uploaded video, but an unlisted
+    // upload is the working equivalent: it exists on your channel, you edit and
+    // tag it, then flip it to public.
+    draft: { supported: true, kind: 'unlisted', note: 'Uploads as unlisted — edit it on YouTube, then set it public.' },
     shortsTagUnnecessary: true,
 
     // A regular upload, when you deliberately do NOT want a Short. YouTube

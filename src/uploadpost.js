@@ -90,7 +90,7 @@ const jsonOf = (v) => {
  * Everything here is a platform-specific override, which is exactly how we
  * get five different captions out of a single API call.
  */
-function applyVariant(form, variant, mediaKind) {
+function applyVariant(form, variant, mediaKind, draft = false) {
   const body = variant.body || '';
   const opts = jsonOf(variant.options);
 
@@ -133,7 +133,8 @@ function applyVariant(form, variant, mediaKind) {
       // TikTok requires privacy explicitly; DIRECT_POST publishes, while
       // MEDIA_UPLOAD drops it into your TikTok drafts instead.
       form.set('privacy_level', opts.privacy_level || 'PUBLIC_TO_EVERYONE');
-      form.set('post_mode', opts.post_mode || 'DIRECT_POST');
+      // MEDIA_UPLOAD drops it into your TikTok drafts instead of publishing.
+      form.set('post_mode', draft ? 'MEDIA_UPLOAD' : (opts.post_mode || 'DIRECT_POST'));
       form.set('disable_comment', String(opts.disable_comment ?? false));
       form.set('disable_duet', String(opts.disable_duet ?? false));
       form.set('disable_stitch', String(opts.disable_stitch ?? false));
@@ -152,7 +153,8 @@ function applyVariant(form, variant, mediaKind) {
     case 'youtube':
       form.set('youtube_title', variant.headline || body.slice(0, 100));
       form.set('youtube_description', body);
-      form.set('privacyStatus', opts.privacyStatus || 'public');
+      // YouTube has no draft; unlisted is the working equivalent.
+      form.set('privacyStatus', draft ? 'unlisted' : (opts.privacyStatus || 'public'));
       form.set('selfDeclaredMadeForKids', String(opts.selfDeclaredMadeForKids ?? false));
       for (const t of opts.tags || []) form.append('tags', t);
       if (opts.thumbnail_url) form.set('thumbnail_url', opts.thumbnail_url);
@@ -187,7 +189,7 @@ export async function publish(env, args) {
   form.set('title', primary?.headline || primary?.body || '');
 
   for (const v of variants) {
-    if (platforms.includes(v.platform)) applyVariant(form, v, mediaKind);
+    if (platforms.includes(v.platform)) applyVariant(form, v, mediaKind, Boolean(args.draft));
   }
 
   if (sendAt) {
