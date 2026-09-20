@@ -271,6 +271,30 @@ async function purgeMedia(env, postId, settings) {
   });
 }
 
+/**
+ * Where a post actually landed, per platform.
+ *
+ * Publishing stores Upload-Post's per-platform {url, post_id} on the job, and
+ * the comment endpoints need exactly that id. Anything without one has not
+ * finished publishing yet, so there is nothing to read comments from.
+ */
+async function publishedTargets(env, postId) {
+  const jobs = await db.getJobs(env.DB, postId);
+  const out = [];
+  for (const job of jobs) {
+    let results = {};
+    try { results = JSON.parse(job.results || '{}'); } catch { /* ignore */ }
+    for (const [platform, r] of Object.entries(results)) {
+      if (!r || r.success === false) continue;
+      const id = r.post_id || r.postId || r.id || null;
+      const url = r.url || null;
+      if (!id && !url) continue;
+      out.push({ platform, postId: id, postUrl: url, supported: Boolean(RULES[platform]?.comments?.supported) });
+    }
+  }
+  return out;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Request handling                                                           */
 /* -------------------------------------------------------------------------- */
@@ -515,6 +539,59 @@ async function handleApi(request, env, url) {
     const key = `${crypto.randomUUID()}${ext}`;
     await env.MEDIA.put(key, request.body, { httpMetadata: { contentType: type } });
     return json({ key, url: `${baseUrl(env, request)}/m/${key}`, name, type });
+  }
+
+  /* ---- comments ---- */
+  if (path === '/comments/posts' && method === 'GET') {
+    // Only posts that actually reached a platform can have comments.
+    const posts = await db.listPosts(env.DB, { limit: 60 });
+    const out = [];
+    for (const p of posts) {
+      if (!['published', 'partial'].includes(p.status)) continue;
+      const targets = await publishedTargets(env, p.id);
+      if (targets.length) out.push({ id: p.id, name: p.name, status: p.status, scheduled_at: p.scheduled_at, updated_at: p.updated_at, targets });
+    }
+    return json({ posts: out });
+  }
+
+  if (path === '/comments' && method === 'GET') {
+    const postId = url.searchParams.get('post_id');
+    if (!postId) return bad('Which post?');
+    const targets = (await publishedTargets(env, postId)).filter((t) => t.supported);
+    const threads = [];
+    const errors = [];
+    for (const t of targets) {
+      try {
+        const r = await up.listComments(env, { platform: t.platform, postId: t.postId, postUrl: t.postId ? null : t.postUrl });
+        threads.push({ platform: t.platform, postId: t.postId, postUrl: t.postUrl, comments: r.comments, nextCursor: r.nextCursor });
+      } catch (err) {
+        // One platform failing should not hide the others.
+        errors.push({ platform: t.platform, error: err.message });
+      }
+    }
+    return json({ threads, errors, unsupported: (await publishedTargets(env, postId)).filter((t) => !t.supported) });
+  }
+
+  if (path === '/comments/reply' && method === 'POST') {
+    try {
+      const res = await up.createComment(env, {
+        platform: body.platform, message: body.message,
+        commentId: body.comment_id, postId: body.post_id, postUrl: body.post_url,
+      });
+      return json({ ok: true, result: res });
+    } catch (err) { return bad(err.message, err.status || 502); }
+  }
+
+  if (path === '/comments/delete' && method === 'POST') {
+    try {
+      return json({ ok: true, result: await up.deleteComment(env, { platform: body.platform, commentId: body.comment_id, postId: body.post_id }) });
+    } catch (err) { return bad(err.message, err.status || 502); }
+  }
+
+  if (path === '/comments/action' && method === 'POST') {
+    try {
+      return json({ ok: true, result: await up.commentAction(env, { platform: body.platform, commentId: body.comment_id, action: body.action, postId: body.post_id }) });
+    } catch (err) { return bad(err.message, err.status || 502); }
   }
 
   if (path === '/refresh' && method === 'POST') {

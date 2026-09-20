@@ -256,3 +256,74 @@ export const postAnalytics = (env, requestId) =>
 
 export const profileAnalytics = (env, username, platforms) =>
   call(env, `/analytics/${encodeURIComponent(username)}`, { query: { platforms: (platforms || []).join(',') } });
+
+/* -------------------------------------------------------------------------- */
+/* Comments                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Comment payloads differ per platform, so flatten them into one shape the UI
+ * can render. Field names are guessed generously on purpose — a comment that
+ * shows up with a missing author beats one that does not show up at all.
+ */
+function normaliseComment(raw, platform) {
+  const pick = (...keys) => keys.map((k) => raw?.[k]).find((v) => v !== undefined && v !== null && v !== '');
+  const author = pick('username', 'author', 'from_name', 'authorName', 'user_name')
+    || raw?.from?.username || raw?.from?.name || raw?.author?.name || raw?.user?.username || 'someone';
+  return {
+    id: String(pick('id', 'comment_id', 'commentId') || ''),
+    platform,
+    author: String(author),
+    text: String(pick('text', 'message', 'comment', 'content', 'body') || ''),
+    createdAt: pick('created_at', 'createdAt', 'timestamp', 'created_time', 'publishedAt') || null,
+    likes: Number(pick('like_count', 'likes', 'likeCount') || 0),
+    replyCount: Number(pick('reply_count', 'replies_count', 'totalReplyCount') || 0),
+    raw,
+  };
+}
+
+export async function listComments(env, { platform, postId, postUrl, limit = 50, after }) {
+  const body = await call(env, '/uploadposts/comments', {
+    query: { platform, user: env.UPLOADPOST_USER, post_id: postId, post_url: postUrl, limit, after },
+  });
+  const items = body.comments || body.data || body.results || (Array.isArray(body) ? body : []);
+  return {
+    comments: (Array.isArray(items) ? items : []).map((c) => normaliseComment(c, platform)),
+    nextCursor: body.pagination?.next_cursor || body.next_cursor || null,
+  };
+}
+
+/** A reply when commentId is given; a top-level comment when postId is. */
+export async function createComment(env, { platform, message, commentId, postId, postUrl }) {
+  const form = new FormData();
+  form.set('platform', platform);
+  form.set('user', env.UPLOADPOST_USER);
+  form.set('message', message);
+  // The API wants exactly one target.
+  if (commentId) form.set('comment_id', commentId);
+  else if (postId) form.set('post_id', postId);
+  else if (postUrl) form.set('post_url', postUrl);
+  // LinkedIn needs the post URN alongside the comment id.
+  if (commentId && platform === 'linkedin' && postId) form.set('post_id', postId);
+  return call(env, '/uploadposts/comments/create', { method: 'POST', form });
+}
+
+export async function deleteComment(env, { platform, commentId, postId }) {
+  const form = new FormData();
+  form.set('platform', platform);
+  form.set('user', env.UPLOADPOST_USER);
+  form.set('comment_id', commentId);
+  if (platform === 'linkedin' && postId) form.set('post_id', postId);
+  return call(env, '/uploadposts/comments/delete', { method: 'POST', form });
+}
+
+/** Hide / pin / like. TikTok only, per the API. */
+export async function commentAction(env, { platform, commentId, action, postId }) {
+  const form = new FormData();
+  form.set('platform', platform);
+  form.set('user', env.UPLOADPOST_USER);
+  form.set('comment_id', commentId);
+  form.set('action', action);
+  if (['hide', 'unhide', 'pin', 'unpin'].includes(action) && postId) form.set('post_id', postId);
+  return call(env, '/uploadposts/comments/action', { method: 'POST', form });
+}

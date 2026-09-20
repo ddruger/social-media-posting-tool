@@ -374,6 +374,23 @@ plain `@Daniel` publishes as text: no link, no notification. That's true of
 every scheduling tool. If a LinkedIn mention matters, send that post as a draft
 or copy it across and post natively.
 
+### Comment triage
+
+A second section in the top bar. Lists everything that actually published,
+and pulls the comments from each platform into one place so you can read and
+reply without opening four apps. The first half hour of replies is what feed
+ranking keys off, so speed matters here more than it sounds.
+
+Reply, delete, and — on TikTok only, because it's the only one the API
+supports it for — hide and pin.
+
+**X isn't covered.** Upload-Post's comment endpoints reach Instagram,
+Facebook, YouTube, LinkedIn and TikTok, but not X. The tool says so and links
+straight to the post instead of pretending there's nothing there.
+
+A post only appears once it has published and the tool knows where it landed,
+which happens on the next status refresh.
+
 ### Previews
 
 Every platform card has an **Edit / Preview** switch. Preview shows roughly how

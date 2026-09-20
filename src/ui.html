@@ -32,7 +32,7 @@ a{color:var(--accent)}
 
 /* layout */
 .topbar{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--soft);position:sticky;top:0;z-index:20;flex-wrap:wrap}
-.brand{font-family:var(--font-display);font-weight:700;letter-spacing:-.02em;font-size:17px;margin-right:auto;display:flex;align-items:center;gap:9px}
+.brand{font-family:var(--font-display);font-weight:700;letter-spacing:-.02em;font-size:17px;display:flex;align-items:center;gap:9px;margin-right:6px}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
 .shell{display:grid;grid-template-columns:270px minmax(0,1fr);gap:0;min-height:calc(100vh - 57px)}
 .side{border-right:1px solid var(--line);padding:14px;overflow-y:auto;max-height:calc(100vh - 57px);position:sticky;top:57px}
@@ -159,6 +159,18 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
 .chat-in{display:flex;gap:9px;padding:11px;border-top:1px solid var(--line);align-items:flex-end}
 .chat-in textarea{min-height:44px;max-height:160px;resize:none}
 .chat-empty{color:var(--muted);font-size:14px;text-align:center;padding:22px 14px}
+
+/* comments */
+.cmt{border-top:1px solid var(--line);padding:12px 0;display:flex;gap:10px;align-items:flex-start}
+.cmt:first-child{border-top:0}
+.cmt-av{width:32px;height:32px;border-radius:50%;flex:none;background:var(--soft);border:1px solid var(--line);display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--muted)}
+.cmt-who{font-weight:600;font-size:13.5px}
+.cmt-meta{font-size:12px;color:var(--muted)}
+.cmt-text{font-size:14px;margin:3px 0 6px;white-space:pre-wrap;word-wrap:break-word}
+.cmt-acts{display:flex;gap:6px;flex-wrap:wrap}
+.cmt-reply{margin-top:8px;display:flex;gap:8px}
+.cmt-reply input{flex:1}
+.cmt-none{color:var(--muted);font-size:13.5px;padding:10px 0}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .switch{position:relative;width:36px;height:20px;flex:none}
@@ -186,14 +198,33 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
 <div id="app" class="hide">
   <div class="topbar">
     <div class="brand"><span class="dot"></span> Social Studio</div>
-    <span id="profileTag" class="muted"></span>
+    <div class="seg seg-sm" id="viewSeg" style="margin:0">
+      <button type="button" data-view-name="posts" class="on">Posts</button>
+      <button type="button" data-view-name="comments">Comments</button>
+    </div>
+    <span id="profileTag" class="muted" style="margin-left:auto"></span>
     <button class="btn-ghost btn-sm" id="connectBtn">Connect accounts</button>
     <button class="btn-ghost btn-sm" id="settingsBtn">Settings</button>
     <button class="btn-ghost btn-sm" id="refreshBtn">Refresh status</button>
     <button class="btn-ghost btn-sm" id="logoutBtn">Sign out</button>
   </div>
 
-  <div class="shell">
+  <div class="shell hide" id="commentsShell" style="grid-template-columns:300px minmax(0,1fr)">
+    <aside class="side">
+      <p class="muted" style="padding:2px 2px 10px">Posts that actually went out. Newest first.</p>
+      <div id="cPostList"></div>
+    </aside>
+    <main class="main">
+      <div id="cEmpty" class="card">
+        <h2>Comment triage</h2>
+        <p class="muted">Pick a post on the left to read and reply to its comments in one place.
+        The first half hour of replies is what ranking keys off, so this is worth doing quickly.</p>
+      </div>
+      <div id="cThreads"></div>
+    </main>
+  </div>
+
+  <div class="shell" id="postsShell">
     <aside class="side">
       <button class="btn-primary newbtn" id="newBtn">+ New post</button>
       <div id="postList"></div>
@@ -1320,6 +1351,172 @@ function renderJobs() {
       <div class="fd">${esc(when)}${j.error ? ' · ' + esc(j.error) : ''}</div>
       ${links ? `<div class="fx">${links}</div>` : ''}</div></div>`;
   }).join('')}</div>`;
+}
+
+/* ---------------- comment triage ---------------- */
+let cPosts = [];
+let cCurrent = null;
+
+$('#viewSeg').querySelectorAll('button').forEach((b) => {
+  b.onclick = () => switchView(b.dataset.viewName);
+});
+
+function switchView(name) {
+  $('#viewSeg').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.viewName === name));
+  $('#postsShell').classList.toggle('hide', name !== 'posts');
+  $('#commentsShell').classList.toggle('hide', name !== 'comments');
+  if (name === 'comments') loadCommentPosts();
+}
+
+async function loadCommentPosts() {
+  const el = $('#cPostList');
+  el.innerHTML = '<p class="muted" style="padding:8px 2px"><span class="spin"></span> loading…</p>';
+  try {
+    const d = await api('/comments/posts');
+    cPosts = d.posts || [];
+  } catch (err) {
+    el.innerHTML = `<p class="muted" style="padding:8px 2px;color:var(--bad)">${esc(err.message)}</p>`;
+    return;
+  }
+  if (!cPosts.length) {
+    el.innerHTML = '<p class="muted" style="padding:8px 2px">Nothing published yet. Once a post goes out it shows up here.</p>';
+    return;
+  }
+  el.innerHTML = cPosts.map((p) => {
+    const title = p.name || 'Untitled';
+    const where = p.targets.map((t) => S.rules[t.platform]?.label || t.platform).join(', ');
+    return `<button class="pitem ${cCurrent === p.id ? 'active' : ''}" data-cid="${p.id}">
+      <span class="t">${esc(title)}</span>
+      <span class="s">${esc(where)}</span>
+    </button>`;
+  }).join('');
+  el.querySelectorAll('[data-cid]').forEach((b) => { b.onclick = () => openComments(b.dataset.cid); });
+}
+
+async function openComments(postId) {
+  cCurrent = postId;
+  loadCommentPosts();
+  $('#cEmpty').classList.add('hide');
+  const box = $('#cThreads');
+  box.innerHTML = '<div class="card"><span class="spin"></span> reading comments…</div>';
+  let d;
+  try {
+    d = await api(`/comments?post_id=${encodeURIComponent(postId)}`);
+  } catch (err) {
+    box.innerHTML = `<div class="card"><p style="color:var(--bad)">${esc(err.message)}</p></div>`;
+    return;
+  }
+
+  const post = cPosts.find((p) => p.id === postId);
+  const blocks = [];
+
+  for (const t of d.threads || []) {
+    const label = S.rules[t.platform]?.label || t.platform;
+    const mod = S.rules[t.platform]?.comments?.moderation || [];
+    blocks.push(`<div class="card" data-thread="${esc(t.platform)}">
+      <h2>${ICONS[t.platform] || ''} ${esc(label)}
+        <span class="muted" style="font-weight:400;font-size:13px;margin-left:auto">${t.comments.length} comment${t.comments.length === 1 ? '' : 's'}</span>
+      </h2>
+      ${t.comments.length ? t.comments.map((c) => `
+        <div class="cmt" data-cid="${esc(c.id)}">
+          <div class="cmt-av">${esc((c.author || '?').slice(0, 2).toUpperCase())}</div>
+          <div style="flex:1;min-width:0">
+            <div class="cmt-who">${esc(c.author)}
+              <span class="cmt-meta">${c.createdAt ? '· ' + esc(String(c.createdAt).slice(0, 16).replace('T', ' ')) : ''}${c.likes ? ' · ' + c.likes + ' likes' : ''}</span>
+            </div>
+            <div class="cmt-text">${esc(c.text)}</div>
+            <div class="cmt-acts">
+              <button class="btn-sm" data-act="reply">Reply</button>
+              ${mod.includes('hide') ? '<button class="btn-sm" data-act="hide">Hide</button>' : ''}
+              ${mod.includes('pin') ? '<button class="btn-sm" data-act="pin">Pin</button>' : ''}
+              <button class="btn-sm" data-act="del" style="color:var(--bad)">Delete</button>
+            </div>
+            <div class="cmt-reply hide">
+              <input type="text" placeholder="Reply as you…">
+              <button class="btn-primary btn-sm" data-act="send">Send</button>
+            </div>
+          </div>
+        </div>`).join('') : '<p class="cmt-none">No comments yet.</p>'}
+    </div>`);
+  }
+
+  for (const e of d.errors || []) {
+    blocks.push(`<div class="card"><h2>${esc(S.rules[e.platform]?.label || e.platform)}</h2>
+      <p class="muted" style="color:var(--warn)">Couldn't load: ${esc(e.error)}</p></div>`);
+  }
+
+  const unsupported = d.unsupported || [];
+  if (unsupported.length) {
+    blocks.push(`<div class="card"><h2>Not covered here</h2>
+      ${unsupported.map((u) => `<p class="muted">${esc(S.rules[u.platform]?.label || u.platform)} — ${esc(S.rules[u.platform]?.comments?.reason || 'not supported')}
+        ${u.postUrl ? `<a href="${esc(u.postUrl)}" target="_blank" rel="noopener">open the post ↗</a>` : ''}</p>`).join('')}
+    </div>`);
+  }
+
+  if (post) {
+    blocks.unshift(`<div class="card"><h2>${esc(post.name || 'Untitled')}</h2>
+      <p class="muted">${post.targets.map((t) => t.postUrl
+        ? `<a href="${esc(t.postUrl)}" target="_blank" rel="noopener">${esc(S.rules[t.platform]?.label || t.platform)} ↗</a>`
+        : esc(S.rules[t.platform]?.label || t.platform)).join(' · ')}</p></div>`);
+  }
+
+  box.innerHTML = blocks.join('');
+  wireCommentActions(box, d);
+}
+
+function wireCommentActions(box, data) {
+  box.querySelectorAll('[data-thread]').forEach((card) => {
+    const platform = card.dataset.thread;
+    const thread = (data.threads || []).find((t) => t.platform === platform);
+    card.querySelectorAll('.cmt').forEach((row) => {
+      const commentId = row.dataset.cid;
+      const replyBox = row.querySelector('.cmt-reply');
+      const input = row.querySelector('.cmt-reply input');
+
+      row.querySelector('[data-act=reply]').onclick = () => {
+        replyBox.classList.toggle('hide');
+        if (!replyBox.classList.contains('hide')) input.focus();
+      };
+
+      const send = async () => {
+        const message = input.value.trim();
+        if (!message) return;
+        const btn = row.querySelector('[data-act=send]');
+        btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+        try {
+          await api('/comments/reply', { method: 'POST', body: { platform, comment_id: commentId, post_id: thread?.postId, message } });
+          toast('Replied.');
+          input.value = '';
+          replyBox.classList.add('hide');
+          openComments(cCurrent);
+        } catch (err) {
+          toast(err.message, true, 8000);
+        } finally { btn.disabled = false; btn.textContent = 'Send'; }
+      };
+      row.querySelector('[data-act=send]').onclick = send;
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+
+      row.querySelector('[data-act=del]').onclick = async () => {
+        if (!confirm('Delete this comment? It cannot be undone.')) return;
+        try {
+          await api('/comments/delete', { method: 'POST', body: { platform, comment_id: commentId, post_id: thread?.postId } });
+          toast('Deleted.');
+          openComments(cCurrent);
+        } catch (err) { toast(err.message, true, 8000); }
+      };
+
+      for (const act of ['hide', 'pin']) {
+        const b = row.querySelector(`[data-act=${act}]`);
+        if (!b) continue;
+        b.onclick = async () => {
+          try {
+            await api('/comments/action', { method: 'POST', body: { platform, comment_id: commentId, post_id: thread?.postId, action: act } });
+            toast(`${act === 'hide' ? 'Hidden' : 'Pinned'}.`);
+          } catch (err) { toast(err.message, true, 8000); }
+        };
+      }
+    });
+  });
 }
 
 /* ---------------- header actions ---------------- */

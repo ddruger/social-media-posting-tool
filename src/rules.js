@@ -58,6 +58,7 @@ export const RULES = {
     // [OFFICIAL] LinkedIn's API cannot create a draft. Drafts exist in the
     // LinkedIn UI only — nothing published through an API can land in them.
     draft: { supported: false, reason: 'LinkedIn drafts exist only in the app; the API cannot create one.' },
+    comments: { supported: true },
     outboundLinkReachCost: 0.188,
     // [STUDY] Same report: LinkedIn now suppresses COMMENTS containing
     // external links by up to 80%, and detects "bridge behaviour" where a
@@ -92,6 +93,9 @@ export const RULES = {
     // [OFFICIAL] No draft for a normal post. (Articles have a draft flag,
     // which is a different thing entirely.)
     draft: { supported: false, reason: 'X has no draft for regular posts over the API.' },
+    // [OFFICIAL] Upload-Post's comment endpoints cover Instagram, Facebook,
+    // YouTube, LinkedIn and TikTok. X is not among them.
+    comments: { supported: false, reason: 'Not covered by the comments API — reply on X itself.' },
     urlCharCost: 23,
     // [STUDY/SOFT] 71–100 characters remains the most-cited high-engagement
     // band and is still repeated across 2026 analyses. The original is an
@@ -132,6 +136,7 @@ export const RULES = {
     carouselApiCapBelowApp: 20,
     // [OFFICIAL] The Content Publishing API publishes; there is no draft state.
     draft: { supported: false, reason: 'Instagram has no draft state over the API.' },
+    comments: { supported: true },
     hashtagCapIsPlatformEnforced: true,
     emoji: { max: 10 },
     // [OFFICIAL] URLs in captions are plain text — not clickable.
@@ -165,6 +170,8 @@ export const RULES = {
     // [OFFICIAL] post_mode=MEDIA_UPLOAD lands in your TikTok drafts, where you
     // can edit and tag before publishing. A real draft.
     draft: { supported: true, kind: 'draft', note: 'Lands in your TikTok inbox as a draft.' },
+    // TikTok is the only one that also supports hide / pin / like.
+    comments: { supported: true, moderation: ['hide', 'unhide', 'pin', 'unpin', 'like'] },
     appCaptionLimit: 4000,
     apiLimitDiffersFromApp: true,
     // [SOFT] Roughly what shows over the video before "more".
@@ -227,6 +234,7 @@ export const RULES = {
     // upload is the working equivalent: it exists on your channel, you edit and
     // tag it, then flip it to public.
     draft: { supported: true, kind: 'unlisted', note: 'Uploads as unlisted — edit it on YouTube, then set it public.' },
+    comments: { supported: true },
     shortsTagUnnecessary: true,
 
     // A regular upload, when you deliberately do NOT want a Short. YouTube
