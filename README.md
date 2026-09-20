@@ -27,6 +27,16 @@ plan.
 
 ## What it actually does
 
+**0. Or start from a half-formed idea.**
+Every post opens with an idea builder: a conversation that pushes back on a
+rough thought before it becomes a post. It asks what you actually saw, offers
+angles, and tells you when the take is just conventional wisdom. It
+deliberately **won't write the post until you ask** — the point is the riff,
+not the generation. When you're happy, it writes the baseline caption and
+turns on the platforms the idea genuinely suits, rather than all five.
+
+Needs an Anthropic API key. Everything below does not.
+
 **1. You write one caption.** However you'd say it, hashtags at the end, link
 wherever. One box.
 

@@ -13,10 +13,11 @@ import UI from './ui.html';
 import SCHEMA from '../migrations/0001_initial.sql';
 import MIGRATION_0002 from '../migrations/0002_carousel.sql';
 import MIGRATION_0003 from '../migrations/0003_draft_mode.sql';
+import MIGRATION_0004 from '../migrations/0004_idea_chat.sql';
 import { PLATFORMS, RULES, LAST_REVIEWED, BEST_TIMES } from './rules.js';
 import { auditPost, auditVariant } from './audit.js';
 import { compose, applyFix } from './compose.js';
-import { rewrite, aiKey } from './ai.js';
+import { rewrite, aiKey, riff, buildFromIdea } from './ai.js';
 import * as up from './uploadpost.js';
 import * as db from './db.js';
 import { authed, checkPassword, makeSession, sessionCookie, clearCookie } from './auth.js';
@@ -58,7 +59,7 @@ async function ensureSchema(env) {
 
   // Later migrations are ALTER TABLE, which has no IF NOT EXISTS in SQLite.
   // Run them one at a time and ignore the "already there" failure.
-  for (const line of [...sqlStatements(MIGRATION_0002), ...sqlStatements(MIGRATION_0003)]) {
+  for (const line of [...sqlStatements(MIGRATION_0002), ...sqlStatements(MIGRATION_0003), ...sqlStatements(MIGRATION_0004)]) {
     try {
       await env.DB.prepare(line).run();
     } catch (err) {
@@ -362,6 +363,31 @@ async function handleApi(request, env, url) {
 
   if (path === '/fix' && method === 'POST') {
     return json({ patch: applyFix(body.action, body.variant || {}, body.ctx || {}) });
+  }
+
+  if (path === '/idea' && method === 'POST') {
+    try {
+      const settings = await db.allSettings(env.DB);
+      const out = await riff(env, { messages: body.messages || [], settings });
+      if (body.post_id) {
+        const msgs = [...(body.messages || []), { role: 'assistant', content: out.content }];
+        await db.updatePost(env.DB, body.post_id, { idea_chat: JSON.stringify(msgs) });
+      }
+      return json(out);
+    } catch (err) {
+      return bad(err.message, err.status || 502);
+    }
+  }
+
+  if (path === '/idea/build' && method === 'POST') {
+    try {
+      const settings = await db.allSettings(env.DB);
+      const out = await buildFromIdea(env, { messages: body.messages || [], settings });
+      if (!out.caption) return bad('The idea builder returned nothing to work with. Try one more exchange first.', 502);
+      return json(out);
+    } catch (err) {
+      return bad(err.message, err.status || 502);
+    }
   }
 
   if (path === '/rewrite' && method === 'POST') {

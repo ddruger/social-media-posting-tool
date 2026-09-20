@@ -8,7 +8,11 @@
 
 import { RULES, PLATFORM_LABELS } from './rules.js';
 
-const API = 'https://api.anthropic.com/v1/messages';
+const DEFAULT_API = 'https://api.anthropic.com/v1/messages';
+
+// Overridable so the idea builder can be exercised against a mock rather than
+// spending real tokens. Leave unset in normal use.
+const apiOf = (env) => env.ANTHROPIC_BASE_URL || DEFAULT_API;
 const DEFAULT_MODEL = 'claude-sonnet-5';
 
 // People type something to get past a form that demands a value. Treat those
@@ -119,7 +123,7 @@ ${wantsTitle
   : '{"body": "...", "hashtags": ["tag", "tag"]}'}
 Hashtags must not include the "#" character.`;
 
-  const res = await fetch(API, {
+  const res = await fetch(apiOf(env), {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -156,5 +160,120 @@ Hashtags must not include the "#" character.`;
     body: String(parsed.body || '').trim(),
     headline: wantsTitle ? String(parsed.title || '').trim() : '',
     hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags.map((t) => String(t).replace(/^#/, '')) : [],
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* The idea builder                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A riffing partner, not a generator.
+ *
+ * The whole value here is the conversation that sharpens a vague thought into
+ * something worth posting. An agent that immediately produces a polished post
+ * is useless — you anchor on the first draft and never do the thinking. So
+ * this one interrogates, offers angles, and refuses to write the post until
+ * it is asked to.
+ */
+const RIFF_SYSTEM = `${VOICE}
+
+You are Daniel's thinking partner for social posts. You are NOT writing the post yet.
+
+Your job is to make the idea sharper than it arrived. Specifically:
+
+- **Interrogate vagueness.** "Teams aren't shipping fast enough" is not a post. Ask which teams, what he actually saw, what the number was. The specific detail IS the post; without it there is nothing.
+- **Find the angle.** Most ideas have an obvious take and a better one. Offer 2–3 concrete angles — the contrarian read, the one nobody says out loud, the one grounded in something he personally saw. Name them briefly, don't lecture.
+- **Push back.** If the take is conventional wisdom, say so. If it would read as self-congratulatory, say so. If he has no real evidence for the claim, say so. He does not need a cheerleader, and a post that everyone already agrees with is a waste of a slot.
+- **Draw out what only he can say.** He runs product at Universal Ads, hosts two podcasts, angel invests, was a founder. The useful post is the one that needs that vantage point. Ask what he has seen that others have not.
+
+How to behave:
+- Ask at most TWO questions at a time. This is a conversation, not an intake form.
+- Be brief. Two or three short paragraphs, or a few bullets. He is busy.
+- Talk like him: direct, warm, no corporate filler, no "great question!", no preamble.
+- When the idea is sharp enough, say so plainly and tell him to hit "Build the post" — do not write the post yourself unless he explicitly asks.
+- If he gives you something already sharp, don't manufacture objections. Say it's ready.`;
+
+export async function riff(env, { messages, settings = {} }) {
+  const key = aiKey(env);
+  if (!key) { const e = new Error(NO_KEY_MESSAGE); e.status = 400; throw e; }
+
+  const res = await fetch(apiOf(env), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+      max_tokens: 1200,
+      system: RIFF_SYSTEM,
+      messages: (messages || []).slice(-24).map((m) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: String(m.content || ''),
+      })),
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(data?.error?.message || `Anthropic returned ${res.status}`); e.status = res.status; throw e; }
+  return { content: (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim() };
+}
+
+/**
+ * Turns the conversation into the one caption everything else is built from.
+ * Deliberately returns the *baseline* post: the per-platform shaping is the
+ * composer's job, and doing it twice would fight itself.
+ */
+export async function buildFromIdea(env, { messages, settings = {} }) {
+  const key = aiKey(env);
+  if (!key) { const e = new Error(NO_KEY_MESSAGE); e.status = 400; throw e; }
+
+  const transcript = (messages || [])
+    .map((m) => `${m.role === 'assistant' ? 'PARTNER' : 'DANIEL'}: ${m.content}`)
+    .join('\n\n');
+
+  const prompt = `Here is the conversation where Daniel worked out what he wants to say:
+
+"""
+${transcript}
+"""
+
+Write the post that conversation arrived at.
+
+This is the BASELINE version — the full thought, written in his voice. It gets reshaped per platform afterwards, so do not trim it for any particular character limit, and do not write five versions.
+
+Rules:
+- Lead with the claim. No throat-clearing, no "I've been thinking about…".
+- Use the specific details he gave you. If he named a number, a company, a thing he saw, it goes in. Invent nothing he did not say.
+- Short paragraphs. Fragments for emphasis where it earns it.
+- End where the thought ends. No "what do you think?" tacked on.
+- 3–5 hashtags at the very end, lowercase, specific rather than broad.
+
+Also judge which platforms this actually suits. A nuanced argument is LinkedIn. A single sharp line is X. Something that needs a visual is Instagram or TikTok. Don't pick all of them out of habit — pick where it genuinely lands.
+
+Respond with JSON only, no prose, no code fence:
+{"name": "short internal label, 3-6 words", "caption": "the post", "platforms": ["linkedin"], "why": "one sentence on the platform choice"}`;
+
+  const res = await fetch(apiOf(env), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+      max_tokens: 2000,
+      system: VOICE,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(data?.error?.message || `Anthropic returned ${res.status}`); e.status = res.status; throw e; }
+
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  let parsed;
+  try { parsed = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, '')); }
+  catch { parsed = { caption: text }; }
+
+  const valid = new Set(['linkedin', 'x', 'instagram', 'tiktok', 'youtube']);
+  return {
+    name: String(parsed.name || '').trim(),
+    caption: String(parsed.caption || '').trim(),
+    platforms: (Array.isArray(parsed.platforms) ? parsed.platforms : []).filter((p) => valid.has(p)),
+    why: String(parsed.why || '').trim(),
   };
 }

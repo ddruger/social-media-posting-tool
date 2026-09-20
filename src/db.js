@@ -70,7 +70,7 @@ export async function createPost(db, data) {
   return id;
 }
 
-const POST_FIELDS = ['name', 'master_caption', 'link_url', 'media_key', 'media_kind', 'media_meta', 'media_items', 'status', 'scheduled_at', 'timezone', 'draft_mode'];
+const POST_FIELDS = ['name', 'master_caption', 'link_url', 'media_key', 'media_kind', 'media_meta', 'media_items', 'status', 'scheduled_at', 'timezone', 'draft_mode', 'idea_chat'];
 
 export async function updatePost(db, id, patch) {
   const sets = [];
