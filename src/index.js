@@ -247,6 +247,7 @@ async function handleApi(request, env, url) {
       posts, settings, platforms: PLATFORMS, rules: RULES, bestTimes: BEST_TIMES,
       rulesReviewed: LAST_REVIEWED,
       defaultTimezone: env.DEFAULT_TIMEZONE || 'America/Los_Angeles',
+      defaultPlatforms: settings.defaultPlatforms || db.DEFAULT_ENABLED_PLATFORMS,
       hasAi: Boolean(aiKey(env)),
       profile: env.UPLOADPOST_USER || null,
     });
@@ -328,7 +329,8 @@ async function handleApi(request, env, url) {
   if (path === '/posts' && method === 'POST') {
     const composed = compose(body.master_caption || '', body.link_url || '', body.media_kind || 'none');
     const id = await db.createPost(env.DB, { ...body, timezone: body.timezone || env.DEFAULT_TIMEZONE });
-    await db.seedVariants(env.DB, id, composed);
+    const settings = await db.allSettings(env.DB);
+    await db.seedVariants(env.DB, id, composed, settings.defaultPlatforms);
     return json({ id, post: await db.getPost(env.DB, id), variants: await db.getVariants(env.DB, id) });
   }
 

@@ -146,12 +146,19 @@ export async function allSettings(db) {
   return out;
 }
 
-/** Creates one variant row per platform for a brand-new post. */
-export async function seedVariants(db, postId, composed) {
+/**
+ * Creates one variant row per platform for a brand-new post.
+ * `enabledPlatforms` decides which start switched on; anything omitted is
+ * created but off, so it is one click away rather than missing.
+ */
+export const DEFAULT_ENABLED_PLATFORMS = ['linkedin', 'x', 'instagram', 'youtube'];
+
+export async function seedVariants(db, postId, composed, enabledPlatforms) {
+  const on = new Set(enabledPlatforms?.length ? enabledPlatforms : DEFAULT_ENABLED_PLATFORMS);
   for (const p of PLATFORMS) {
     const c = composed[p] || {};
     await upsertVariant(db, postId, p, {
-      enabled: true, body: c.body || '', headline: c.headline || '',
+      enabled: on.has(p), body: c.body || '', headline: c.headline || '',
       first_comment: c.first_comment || '', hashtags: c.hashtags || [],
       options: c.options || {}, offset_min: 0,
     });

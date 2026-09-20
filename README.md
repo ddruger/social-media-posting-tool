@@ -283,8 +283,22 @@ automatically every 10 minutes.
 
 To pull something back, open it and hit **Cancel scheduled posts**.
 
+### Previews
+
+Every platform card has an **Edit / Preview** switch. Preview shows roughly how
+the post lands — including, crucially, **where the "see more" fold cuts**, using
+the same numbers the audit scores against. So if the audit says your hook is
+buried, the preview shows you exactly what a reader sees before tapping.
+
+The name and handle in previews come from Settings.
+
 ### Handy to know
 
+- **Publish now vs Schedule** — a new post defaults to **Publish now**, which
+  sends as soon as you press the button. Switch to **Schedule for later** to
+  pick a time. The audit runs either way; blocking issues still stop it.
+- **TikTok starts switched off.** Flip it on per post, or change which
+  platforms start on in Settings.
 - **Stagger** — minutes after your send time, per platform. Set LinkedIn to 0
   and X to 30 to avoid posting the identical thing everywhere at the same
   minute. Remember it costs an extra upload on the free plan.

@@ -118,6 +118,36 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
 .toast.err{background:var(--bad);color:#fff}
 .gate{max-width:340px;margin:16vh auto;padding:0 20px}
 .hide{display:none!important}
+
+/* segmented control */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper)}
+.seg button{border:0;border-radius:0;background:transparent;padding:7px 14px;font-size:13.5px;color:var(--muted)}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--accent);color:#fff;font-weight:600}
+.seg button:hover:not(.on){color:var(--accent)}
+.seg-sm{margin-bottom:14px}
+.seg-sm button{padding:5px 12px;font-size:12.5px}
+
+/* post previews */
+.pv{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--paper);max-width:560px}
+.pv-head{display:flex;gap:10px;align-items:center;padding:12px 14px 8px}
+.pv-av{width:42px;height:42px;border-radius:50%;flex:none;background:linear-gradient(135deg,var(--accent),#7aa2ff);color:#fff;display:grid;place-items:center;font-weight:700;font-size:15px}
+.pv-who{min-width:0}
+.pv-name{font-weight:600;font-size:14px;line-height:1.25}
+.pv-sub{font-size:12px;color:var(--muted)}
+.pv-body{padding:2px 14px 10px;font-size:14.5px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
+.pv-more{color:var(--muted);cursor:default}
+.pv-tag{color:var(--accent)}
+.pv-media{background:#000;display:grid;place-items:center;color:#8b93a1;font-size:12px;position:relative}
+.pv-media video,.pv-media img{width:100%;display:block;max-height:420px;object-fit:contain}
+.pv-vert{aspect-ratio:9/16;max-height:440px;margin:0 auto;width:auto}
+.pv-bar{display:flex;gap:18px;padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+.pv-cmt{border-top:1px solid var(--line);padding:10px 14px;font-size:13px;display:flex;gap:9px;align-items:flex-start}
+.pv-cmt .pv-av{width:28px;height:28px;font-size:11px}
+.pv-note{font-size:12px;color:var(--muted);margin-top:8px}
+.pv-overlay{position:absolute;left:0;right:0;bottom:0;padding:14px;background:linear-gradient(transparent,rgba(0,0,0,.78));color:#fff;font-size:13.5px;line-height:1.45;text-align:left;white-space:pre-wrap}
+.pv-yt-title{position:absolute;left:0;right:0;top:0;padding:14px;background:linear-gradient(rgba(0,0,0,.65),transparent);color:#fff;font-size:15px;font-weight:600;line-height:1.3}
+.pv-thread{border-top:1px dashed var(--line)}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .switch{position:relative;width:36px;height:20px;flex:none}
@@ -175,6 +205,13 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
           </span>
         </label>
         <label class="fld"><span>Default timezone</span><input type="text" id="setTz" placeholder="America/Los_Angeles"></label>
+        <div class="row">
+          <label class="fld"><span>Your name (shown in previews)</span><input type="text" id="setName" placeholder="Daniel Druger"></label>
+          <label class="fld"><span>Your handle (shown in previews)</span><input type="text" id="setHandle" placeholder="danieldruger"></label>
+        </div>
+        <label class="fld"><span>Platforms switched on for a new post</span>
+          <div id="setPlatforms" style="display:flex;gap:16px;flex-wrap:wrap;padding-top:2px"></div>
+        </label>
         <div class="bar" style="border:0;padding-top:4px">
           <button class="btn-primary btn-sm" id="saveSettings">Save settings</button>
           <button class="btn-sm" id="closeSettings">Close</button>
@@ -196,9 +233,18 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
           </label>
           <div class="row">
             <label class="fld"><span>Link (optional)</span><input type="url" id="fLink" placeholder="https://adsn.substack.com"></label>
-            <label class="fld"><span>Send at</span><input type="datetime-local" id="fWhen"></label>
             <label class="fld"><span>Timezone</span><input type="text" id="fTz" placeholder="America/Los_Angeles"></label>
           </div>
+          <label class="fld"><span>When to send</span>
+            <div class="seg" id="whenSeg">
+              <button type="button" data-when="now">Publish now</button>
+              <button type="button" data-when="later" class="on">Schedule for later</button>
+            </div>
+          </label>
+          <label class="fld hide" id="whenWrap"><span>Send at</span><input type="datetime-local" id="fWhen"></label>
+          <p class="muted hide" id="nowNote" style="margin:-6px 0 12px">
+            Goes out as soon as you press <strong>Audit &amp; publish</strong>. Blocking issues still stop it.
+          </p>
           <div class="bar" style="border:0;padding:0 0 12px">
             <button class="btn-sm" id="recomposeBtn">↻ Rebuild every draft from this caption</button>
             <span class="muted">Careful: this replaces any edits you've made below.</span>
@@ -289,6 +335,13 @@ async function boot() {
     $('#rulesNote').textContent = `Best-practice rules last reviewed ${st.rulesReviewed}. They live in src/rules.js — edit the numbers there when a platform changes.`;
     $('#setXPremium').checked = !!st.settings.xPremium;
     $('#setKeepMedia').checked = !!st.settings.keepMediaAfterPublish;
+    $('#setName').value = st.settings.displayName || '';
+    $('#setHandle').value = st.settings.handle || '';
+    const on = new Set(st.settings.defaultPlatforms || st.defaultPlatforms || []);
+    $('#setPlatforms').innerHTML = (st.platforms || []).map((p) => `
+      <label style="display:flex;align-items:center;gap:7px;font-weight:500;text-transform:none;letter-spacing:0;font-size:14px;margin:0">
+        <input type="checkbox" data-dp="${p}" ${on.has(p) ? 'checked' : ''} style="width:auto"> ${esc(st.rules[p]?.label || p)}
+      </label>`).join('');
     $('#setTz').value = st.settings.timezone || st.defaultTimezone || '';
     renderList();
   } catch (err) {
@@ -344,6 +397,7 @@ async function openPost(id) {
   $('#fLink').value = d.post.link_url || '';
   $('#fWhen').value = toLocalInput(d.post.scheduled_at);
   $('#fTz').value = d.post.timezone || '';
+  setWhenMode(d.post.scheduled_at ? 'later' : 'now');
   renderMedia();
   renderPlatforms();
   renderJobs();
@@ -371,6 +425,12 @@ function renderPlatforms() {
         <div class="score" data-score></div>
       </div>
       <div class="plat-body">
+        <div class="seg seg-sm" data-view>
+          <button type="button" data-v="edit" class="on">Edit</button>
+          <button type="button" data-v="preview">Preview</button>
+        </div>
+        <div data-preview class="hide"></div>
+        <div data-edit>
         ${p === 'youtube' ? `<label class="fld"><span>Title — only ~40 characters show in the feed</span>
           <input type="text" data-f="headline" value="${esc(v.headline)}" maxlength="120"></label>` : ''}
         <label class="fld"><span>${p === 'youtube' ? 'Description' : 'Caption'}</span>
@@ -388,6 +448,7 @@ function renderPlatforms() {
           <button class="btn-sm" data-act="rewrite"${S.hasAi ? '' : ' disabled title="Needs an Anthropic API key. Add ANTHROPIC_API_KEY in Cloudflare: your Worker → Settings → Variables and Secrets. Everything else works without it."'}>✨ Rewrite with AI in your voice</button>
           <button class="btn-sm" data-act="recompose-one">↻ Rebuild from caption</button>
         </div>
+        </div>
         <div data-findings></div>
       </div>
     </section>`;
@@ -403,6 +464,8 @@ function renderPlatforms() {
         else if (f === 'offset_min') v.offset_min = parseInt(inp.value, 10) || 0;
         else v[f] = inp.value;
         S.dirty = true;
+        // Keep an open preview in step with what is being typed.
+        if (!card.querySelector('[data-preview]').classList.contains('hide')) showView(card, 'preview');
         liveAudit();
       };
     });
@@ -411,9 +474,141 @@ function renderPlatforms() {
       card.classList.toggle('off', !e.target.checked);
       S.dirty = true; liveAudit();
     };
+    card.querySelectorAll('[data-view] button').forEach((b) => {
+      b.onclick = () => showView(card, b.dataset.v);
+    });
     card.querySelector('[data-act=rewrite]').onclick = (e) => aiRewrite(p, e.target);
     card.querySelector('[data-act=recompose-one]').onclick = () => recompose([p]);
   });
+}
+
+/* ---------------- post previews ---------------- */
+/**
+ * An approximation of how each post lands — close enough to judge the hook,
+ * the fold and the hashtags. The important part is that the "see more" cut is
+ * taken from the same rules the audit uses, so preview and score agree.
+ */
+const who = () => {
+  const name = S.settings.displayName || 'Daniel Druger';
+  const handle = (S.settings.handle || name).replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
+  const initials = name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  return { name, handle, initials };
+};
+
+function linkify(text) {
+  return esc(text)
+    .replace(/(^|\s)(#[A-Za-z0-9_]+)/g, '$1<span class="pv-tag">$2</span>')
+    .replace(/(https?:\/\/[^\s<]+)/g, '<span class="pv-tag">$1</span>');
+}
+
+/** Splits at the fold so the preview shows exactly what a reader sees first. */
+function folded(text, foldChars) {
+  const chars = [...(text || '')];
+  if (!foldChars || chars.length <= foldChars) return linkify(text || '');
+  return `${linkify(chars.slice(0, foldChars).join(''))}<span class="pv-more">… more</span>`;
+}
+
+function mediaBlock(vertical) {
+  const kind = S.current?.media_kind;
+  const key = S.current?.media_key;
+  const meta = parse(S.current?.media_meta);
+  if (kind === 'none' || (!key && !meta.purged)) return '';
+  const cls = vertical ? 'pv-media pv-vert' : 'pv-media';
+  if (!key) return `<div class="${cls}" style="min-height:180px">video already posted and cleared from storage</div>`;
+  const inner = kind === 'video'
+    ? `<video src="/m/${esc(key)}" muted playsinline preload="metadata"></video>`
+    : `<img src="/m/${esc(key)}" alt="">`;
+  return `<div class="${cls}">${inner}</div>`;
+}
+
+function previewFor(platform) {
+  const v = variantOf(platform);
+  const r = S.rules[platform] || {};
+  const { name, handle, initials } = who();
+  const av = `<div class="pv-av">${esc(initials)}</div>`;
+  const body = v.body || '';
+
+  if (platform === 'linkedin') {
+    const comment = v.first_comment
+      ? `<div class="pv-cmt">${av}<div><div style="font-weight:600;font-size:12.5px">${esc(name)}</div>
+         <div>${linkify(v.first_comment)}</div></div></div>`
+      : '';
+    return `<div class="pv">
+      <div class="pv-head">${av}<div class="pv-who">
+        <div class="pv-name">${esc(name)}</div>
+        <div class="pv-sub">VP of Product · now</div></div></div>
+      <div class="pv-body">${folded(body, r.foldChars)}</div>
+      ${mediaBlock(false)}
+      <div class="pv-bar"><span>Like</span><span>Comment</span><span>Repost</span><span>Send</span></div>
+      ${comment}
+    </div>
+    <p class="pv-note">Cut at ${r.foldChars} characters — the mobile “see more” point. Desktop shows about ${r.foldCharsDesktop}.</p>`;
+  }
+
+  if (platform === 'x') {
+    const opts = parse(v.options);
+    const thread = opts.thread ? (v._thread || []) : [];
+    const posts = thread.length > 1 ? thread : [body];
+    return `<div class="pv">
+      ${posts.map((part, i) => `
+        <div class="${i ? 'pv-thread' : ''}">
+          <div class="pv-head">${av}<div class="pv-who">
+            <div class="pv-name">${esc(name)} <span class="pv-sub">@${esc(handle)} · now</span></div></div></div>
+          <div class="pv-body">${linkify(part)}</div>
+          ${i === 0 ? mediaBlock(false) : ''}
+          <div class="pv-bar"><span>Reply</span><span>Repost</span><span>Like</span><span>Views</span></div>
+        </div>`).join('')}
+    </div>
+    ${posts.length > 1 ? `<p class="pv-note">Posts as a thread of ${posts.length}.</p>` : ''}`;
+  }
+
+  if (platform === 'instagram') {
+    return `<div class="pv">
+      <div class="pv-head">${av}<div class="pv-who"><div class="pv-name">${esc(handle)}</div>
+        <div class="pv-sub">Reel · now</div></div></div>
+      ${mediaBlock(true) || '<div class="pv-media" style="min-height:200px">Instagram needs an image or video</div>'}
+      <div class="pv-bar"><span>Like</span><span>Comment</span><span>Share</span><span>Save</span></div>
+      <div class="pv-body"><strong>${esc(handle)}</strong> ${folded(body, r.foldChars)}</div>
+    </div>
+    <p class="pv-note">Cut at ${r.foldChars} characters. Links here are plain text, not tappable.</p>`;
+  }
+
+  if (platform === 'tiktok') {
+    const m = mediaBlock(true);
+    return `<div class="pv">
+      ${m ? m.replace('</div>', `<div class="pv-overlay"><strong>@${esc(handle)}</strong>\n${folded(body, r.foldChars)}</div></div>`)
+          : '<div class="pv-media" style="min-height:220px">TikTok needs a video</div>'}
+    </div>
+    <p class="pv-note">Caption sits over the video; roughly ${r.foldChars} characters show before “more”.</p>`;
+  }
+
+  if (platform === 'youtube') {
+    const m = mediaBlock(true);
+    const title = v.headline || '';
+    const visible = [...title].slice(0, r.titleVisibleChars).join('');
+    const rest = [...title].slice(r.titleVisibleChars).join('');
+    return `<div class="pv">
+      ${m ? m.replace('</div>', `<div class="pv-yt-title">${esc(visible)}${rest ? `<span style="opacity:.55">${esc(rest)}</span>` : ''}</div>
+            <div class="pv-overlay"><strong>@${esc(handle)}</strong></div></div>`)
+          : '<div class="pv-media" style="min-height:220px">A Short needs a video</div>'}
+    </div>
+    <p class="pv-note">The faded part of the title is past the ~${r.titleVisibleChars} characters the Shorts feed shows. It is still fully visible in search and on your channel.</p>`;
+  }
+  return '';
+}
+
+function showView(card, view) {
+  card.querySelectorAll('[data-view] button').forEach((b) => b.classList.toggle('on', b.dataset.v === view));
+  const pv = card.querySelector('[data-preview]');
+  const ed = card.querySelector('[data-edit]');
+  if (view === 'preview') {
+    pv.innerHTML = previewFor(card.dataset.p);
+    pv.classList.remove('hide');
+    ed.classList.add('hide');
+  } else {
+    pv.classList.add('hide');
+    ed.classList.remove('hide');
+  }
 }
 
 /* ---------------- audit ---------------- */
@@ -423,7 +618,7 @@ function auditPayload() {
     media_kind: S.current?.media_kind || 'none',
     media_meta: parse(S.current?.media_meta),
     has_media: Boolean(S.current?.media_key),
-    scheduled_at: fromLocalInput($('#fWhen').value),
+    scheduled_at: chosenSendAt(),
     timezone: $('#fTz').value || S.defaultTimezone,
     settings: S.settings,
   };
@@ -630,6 +825,23 @@ $('#fileInput').onchange = (e) => { if (e.target.files[0]) uploadMedia(e.target.
 ['dragleave', 'drop'].forEach((ev) => $('#dropzone').addEventListener(ev, () => $('#dropzone').classList.remove('over')));
 $('#dropzone').addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files[0]) uploadMedia(e.dataTransfer.files[0]); });
 
+/* ---------------- when to send ---------------- */
+const whenMode = () => ($('#whenSeg button.on')?.dataset.when || 'later');
+
+function setWhenMode(mode) {
+  $('#whenSeg').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.when === mode));
+  $('#whenWrap').classList.toggle('hide', mode === 'now');
+  $('#nowNote').classList.toggle('hide', mode !== 'now');
+  $('#scheduleBtn').textContent = mode === 'now' ? 'Audit & publish now' : 'Audit & schedule everywhere';
+}
+
+$('#whenSeg').querySelectorAll('button').forEach((b) => {
+  b.onclick = () => { setWhenMode(b.dataset.when); S.dirty = true; liveAudit(); };
+});
+
+/** null means "send immediately" all the way through to the API. */
+const chosenSendAt = () => (whenMode() === 'now' ? null : fromLocalInput($('#fWhen').value));
+
 /* ---------------- save / schedule ---------------- */
 async function save({ silent = false } = {}) {
   if (!S.current) return;
@@ -638,7 +850,7 @@ async function save({ silent = false } = {}) {
       name: $('#fName').value,
       master_caption: $('#fMaster').value,
       link_url: $('#fLink').value,
-      scheduled_at: fromLocalInput($('#fWhen').value),
+      scheduled_at: chosenSendAt(),
       timezone: $('#fTz').value || S.defaultTimezone,
     },
     variants: S.variants.map((v) => ({ ...v, enabled: !!v.enabled })),
@@ -660,7 +872,9 @@ $('#scheduleBtn').onclick = async (e) => {
   try {
     await save({ silent: true });
     const res = await api(`/posts/${S.current.id}/schedule`, { method: 'POST', body: {} });
-    toast(res.status === 'scheduled' ? 'Scheduled on every platform.' : 'Published.');
+    toast(res.status === 'scheduled'
+      ? 'Scheduled on every platform you switched on.'
+      : 'Sent. Platforms take a minute or two — use Refresh status.');
     await openPost(S.current.id);
   } catch (err) {
     if (err.status === 409) {
@@ -737,10 +951,18 @@ $('#connectBtn').onclick = async () => {
 $('#settingsBtn').onclick = () => $('#settingsPane').classList.toggle('hide');
 $('#closeSettings').onclick = () => $('#settingsPane').classList.add('hide');
 $('#saveSettings').onclick = async () => {
-  await api('/settings', { method: 'POST', body: { xPremium: $('#setXPremium').checked, keepMediaAfterPublish: $('#setKeepMedia').checked, timezone: $('#setTz').value } });
-  S.settings.xPremium = $('#setXPremium').checked;
-  S.settings.keepMediaAfterPublish = $('#setKeepMedia').checked;
-  S.settings.timezone = $('#setTz').value;
+  const defaultPlatforms = [...document.querySelectorAll('#setPlatforms [data-dp]')]
+    .filter((c) => c.checked).map((c) => c.dataset.dp);
+  const patch = {
+    xPremium: $('#setXPremium').checked,
+    keepMediaAfterPublish: $('#setKeepMedia').checked,
+    timezone: $('#setTz').value,
+    displayName: $('#setName').value,
+    handle: $('#setHandle').value,
+    defaultPlatforms,
+  };
+  await api('/settings', { method: 'POST', body: patch });
+  Object.assign(S.settings, patch);
   toast('Settings saved.');
   runAudit();
 };
