@@ -11,6 +11,27 @@ import { RULES, PLATFORM_LABELS } from './rules.js';
 const API = 'https://api.anthropic.com/v1/messages';
 const DEFAULT_MODEL = 'claude-sonnet-5';
 
+// People type something to get past a form that demands a value. Treat those
+// as "no key" so the button reports the real situation rather than relaying a
+// confusing 401 from Anthropic.
+const PLACEHOLDERS = new Set([
+  'none', 'skip', 'n/a', 'na', 'no', 'nope', 'false', 'null', 'undefined',
+  'x', '-', '.', 'todo', 'changeme', 'placeholder', 'optional', 'blank', 'empty',
+]);
+
+/** The usable Anthropic key, or null if one was never really provided. */
+export function aiKey(env) {
+  const key = (env.ANTHROPIC_API_KEY || '').trim();
+  if (!key || key.length < 20 || PLACEHOLDERS.has(key.toLowerCase())) return null;
+  return key;
+}
+
+const NO_KEY_MESSAGE =
+  'The AI rewrite needs an Anthropic API key, which this deployment does not have. ' +
+  'Everything else — the five drafts, the audit, scheduling — works without one. ' +
+  'To switch it on: console.anthropic.com for a key, then in Cloudflare open your ' +
+  'Worker, Settings, Variables and Secrets, and add ANTHROPIC_API_KEY as a Secret.';
+
 /** Condensed from the daniels-voice skill. */
 const VOICE = `You are ghostwriting for Daniel Druger. It must sound like him, not like AI and not like a LinkedIn influencer.
 
@@ -71,8 +92,9 @@ function platformBrief(platform, settings = {}) {
 }
 
 export async function rewrite(env, { platform, master, current, linkUrl, mediaKind, settings = {}, instruction = '' }) {
-  if (!env.ANTHROPIC_API_KEY) {
-    const e = new Error('ANTHROPIC_API_KEY is not set. Run: npx wrangler secret put ANTHROPIC_API_KEY — or just use the mechanical drafts, which need no key.');
+  const key = aiKey(env);
+  if (!key) {
+    const e = new Error(NO_KEY_MESSAGE);
     e.status = 400;
     throw e;
   }
@@ -101,7 +123,7 @@ Hashtags must not include the "#" character.`;
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': env.ANTHROPIC_API_KEY,
+      'x-api-key': key,
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({

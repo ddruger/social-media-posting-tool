@@ -14,7 +14,7 @@ import SCHEMA from '../migrations/0001_initial.sql';
 import { PLATFORMS, RULES, LAST_REVIEWED, BEST_TIMES } from './rules.js';
 import { auditPost, auditVariant } from './audit.js';
 import { compose, applyFix } from './compose.js';
-import { rewrite } from './ai.js';
+import { rewrite, aiKey } from './ai.js';
 import * as up from './uploadpost.js';
 import * as db from './db.js';
 import { authed, checkPassword, makeSession, sessionCookie, clearCookie } from './auth.js';
@@ -53,8 +53,17 @@ async function ensureSchema(env) {
 const isMissingTable = (err) => /no such table/i.test(err?.message || '');
 
 function baseUrl(env, request) {
-  const configured = (env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  return configured || new URL(request.url).origin;
+  const origin = new URL(request.url).origin;
+  const configured = (env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (!configured) return origin;
+  // Only honour something that is actually a URL. A setup form that demands a
+  // value invites a placeholder, and an unreachable media URL would fail at
+  // publish time with an error that points nowhere near the cause.
+  try {
+    const parsed = new URL(configured);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return configured;
+  } catch { /* fall through */ }
+  return origin;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -235,7 +244,7 @@ async function handleApi(request, env, url) {
       posts, settings, platforms: PLATFORMS, rules: RULES, bestTimes: BEST_TIMES,
       rulesReviewed: LAST_REVIEWED,
       defaultTimezone: env.DEFAULT_TIMEZONE || 'America/Los_Angeles',
-      hasAi: Boolean(env.ANTHROPIC_API_KEY),
+      hasAi: Boolean(aiKey(env)),
       profile: env.UPLOADPOST_USER || null,
     });
   }

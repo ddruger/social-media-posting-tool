@@ -140,14 +140,22 @@ install.
 You'll also need a GitHub account, since Cloudflare puts its copy of the code
 there.
 
-On the setup page it asks for four values. Three are required:
+On the setup page it asks for three things:
 
 - **`APP_PASSWORD`** — make one up. This is what you'll type to sign in.
 - **`UPLOADPOST_API_KEY`** — from the table above.
 - **`UPLOADPOST_USER`** — a profile name, e.g. `daniel`. Lowercase, no spaces.
   Write it down; it has to match a profile you create in the next step.
-- **`ANTHROPIC_API_KEY`** — optional, only for the "Rewrite with AI" button.
-  Leave it blank and everything else still works.
+
+If it also asks for `PUBLIC_BASE_URL` or `DEFAULT_TIMEZONE`, leave them as they
+are. Neither needs a value, and `PUBLIC_BASE_URL` can't be known until after
+the deploy anyway — the Worker figures it out on its own.
+
+**"Rewrite with AI" is off by default**, because it needs a paid Anthropic key
+and nothing else does. The button is visibly disabled until you add one. To
+turn it on: get a key from [console.anthropic.com](https://console.anthropic.com),
+then in Cloudflare open your Worker → **Settings** → **Variables and Secrets**
+→ Add → **Secret**, named `ANTHROPIC_API_KEY`.
 
 When it finishes, Cloudflare shows your URL — something like
 `https://social-studio.<your-name>.workers.dev`. Open it, sign in with the

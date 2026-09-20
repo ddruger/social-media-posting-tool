@@ -385,7 +385,7 @@ function renderPlatforms() {
             <input type="text" inputmode="numeric" data-f="offset_min" value="${esc(v.offset_min || 0)}"></label>
         </div>
         <div class="bar" style="border:0;padding:4px 0 10px">
-          <button class="btn-sm" data-act="rewrite">✨ Rewrite with AI in your voice</button>
+          <button class="btn-sm" data-act="rewrite"${S.hasAi ? '' : ' disabled title="Needs an Anthropic API key. Add ANTHROPIC_API_KEY in Cloudflare: your Worker → Settings → Variables and Secrets. Everything else works without it."'}>✨ Rewrite with AI in your voice</button>
           <button class="btn-sm" data-act="recompose-one">↻ Rebuild from caption</button>
         </div>
         <div data-findings></div>

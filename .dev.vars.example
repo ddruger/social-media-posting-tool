@@ -16,5 +16,7 @@ UPLOADPOST_API_KEY=
 # User Management. Lowercase, no spaces.
 UPLOADPOST_USER=
 
-# Optional. Only needed for the "Rewrite with AI" button. Leave blank to skip.
-ANTHROPIC_API_KEY=
+# NOTE: ANTHROPIC_API_KEY is deliberately NOT listed here. It is optional, and
+# the Cloudflare deploy page treats every key in this file as required. To turn
+# on the "Rewrite with AI" button later, add it in the Cloudflare dashboard:
+# your Worker -> Settings -> Variables and Secrets -> Add -> Secret.

@@ -39,12 +39,13 @@ binding = "MEDIA"
 bucket_name = "social-studio-media"
 
 [vars]
-# Leave this empty for the first deploy. After deploying, copy the
-# https://social-studio.<your-subdomain>.workers.dev URL that wrangler prints,
-# paste it here, and deploy once more.
-PUBLIC_BASE_URL = ""
 # Your posting timezone. Used for the calendar and for scheduling.
 DEFAULT_TIMEZONE = "America/Los_Angeles"
+
+# PUBLIC_BASE_URL is deliberately not set here. The Worker uses its own
+# incoming request URL, which is right in every normal case and needs no
+# configuration. Set it only if you put the tool behind a custom domain AND
+# media fetching breaks: Worker -> Settings -> Variables and Secrets.
 
 [observability]
 enabled = true
