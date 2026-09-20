@@ -76,15 +76,42 @@ posts, captions and videos are stored while they wait to go out. Free tier
 covers everything here comfortably. You already have an account.
 
 **Upload-Post — the thing that actually posts.**
-Getting a video onto LinkedIn, X, Instagram, TikTok and YouTube from outside
-those apps normally means registering as a developer with all five, each with
-its own approval process — Meta's review alone takes weeks, and X charges for
-API access. [Upload-Post](https://upload-post.com) has already done all of
-that. You connect your accounts to them once, and they hand this tool a single
-key that posts to all five.
+[Upload-Post](https://upload-post.com) has already registered as a developer
+with all five platforms and passed the reviews each one requires. You connect
+your accounts to them once, and they hand this tool a single key that posts
+everywhere. Free for 10 posts a month, $24/month unlimited.
 
-Practically: it's the difference between five developer applications and one
-signup. Free for 10 posts a month, $24/month unlimited.
+### Why not just talk to each platform's API directly?
+
+Reasonable question, and the answer is more nuanced than "you can't." Posting
+to **your own** accounts is much easier than posting on behalf of other
+people — most of the scary review processes only apply to the latter. Checked
+September 2026:
+
+| Platform | Direct integration, your own account | Catch |
+|---|---|---|
+| **LinkedIn** | Genuinely easy | Add the "Share on LinkedIn" product to a developer app. Self-serve, no review, works the same day. ~100 posts/day. |
+| **Instagram** | Genuinely easy | A Meta app in Development mode with your own account added as an Instagram Tester. **No App Review at all.** Review is only needed when other people connect. |
+| **X** | Works, costs pennies | The free tier closed to new developers in Feb 2026. Now pay-per-use: $0.015 a post, **$0.20 if it contains a link**. At a normal cadence that's a few dollars a month, but it needs a card on file. |
+| **YouTube** | Works, with a recurring annoyance | While your Google Cloud app is in "Testing", **refresh tokens die every 7 days** — you would re-authorise weekly forever. Fixing that means publishing the app to Production, and video upload is a sensitive scope, so that needs Google verification. |
+| **TikTok** | **Blocked** | The Content Posting API requires an audit: 2–4 weeks and several rounds of feedback. Until it passes, every post is forced to SELF_ONLY *and your account has to be private*. There is no personal-use exemption. |
+
+So three of the five are very doable, YouTube is doable but nags, and TikTok is
+a genuine wall.
+
+The stronger argument for Upload-Post isn't approvals — it's the media
+plumbing. Each platform uploads video completely differently: LinkedIn
+registers then uploads then creates, Instagram builds a container and you poll
+it until it's ready, YouTube wants a resumable upload, X wants chunked upload.
+That's five protocols, five token-refresh schemes and five sets of error
+handling to write and then keep working as each platform changes. One key
+replaces all of it.
+
+**If you'd rather not use a third party at all**, the honest option is to drop
+TikTok and integrate the other four directly. That's real work, and it moves
+the setup burden from one signup to four developer portals — but it's possible,
+and nothing about this tool's design prevents it. The audit and the five drafts
+are the interesting part, and they don't depend on how posting happens.
 
 **Worth being clear about the tradeoff:** Upload-Post is a small third-party
 company, and connecting your accounts gives them permission to post as you on
