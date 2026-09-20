@@ -27,10 +27,10 @@ fallthrough = true
 [[d1_databases]]
 binding = "DB"
 database_name = "social-studio"
-# Left as a placeholder on purpose: the "Deploy to Cloudflare" button creates
-# the database and writes the real id in here for you. `npm run setup` does the
-# same. Only fill it in by hand if you are setting up manually.
-database_id = "PLACEHOLDER_CREATED_ON_DEPLOY"
+# Daniel's D1 database, created in the Cloudflare dashboard on 2026-09-20.
+# If you fork this, replace it with your own: the Deploy to Cloudflare button
+# creates one and fills this in automatically, and `npm run setup` does the same.
+database_id = "eac9eef9-160f-420f-bec9-d833362b8aaa"
 migrations_dir = "migrations"
 
 # Where your videos and images are stored so Upload-Post can fetch them.
