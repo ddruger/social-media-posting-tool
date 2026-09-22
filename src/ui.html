@@ -572,8 +572,9 @@ function renderPlatforms() {
           <button class="emoji-btn" data-emoji-body style="float:right;margin-top:-2px">🙂</button></span>
           <textarea data-f="body" rows="${p === 'x' ? 4 : 7}">${esc(v.body)}</textarea></label>
         <div class="counter" data-counter></div>
-        <label class="fld" style="margin-top:12px"><span>First comment ${p === 'linkedin' ? '— where your link belongs on LinkedIn' : '(optional)'}</span>
-          <input type="text" data-f="first_comment" value="${esc(v.first_comment)}"></label>
+        <label class="fld" style="margin-top:12px"><span>First comment ${p === 'linkedin' ? '— where your link belongs on LinkedIn' : '(optional)'}
+          <button class="emoji-btn" data-emoji-comment style="float:right;margin-top:-2px">🙂</button></span>
+          <textarea data-f="first_comment" rows="3" placeholder="Line breaks work here.">${esc(v.first_comment)}</textarea></label>
         <div class="row">
           <label class="fld"><span>Hashtags (comma separated, no #)
             <button class="btn-sm" data-act="suggest-tags" style="float:right;margin-top:-3px;font-weight:500;text-transform:none;letter-spacing:0">Suggest</button></span>
@@ -617,6 +618,7 @@ function renderPlatforms() {
     };
     renderPlatformMedia(card, p, v);
     attachEmoji(card.querySelector('[data-emoji-body]'), card.querySelector('[data-f=body]'));
+    attachEmoji(card.querySelector('[data-emoji-comment]'), card.querySelector('[data-f=first_comment]'));
 
     card.querySelector('[data-act=suggest-tags]').onclick = async (e) => {
       e.preventDefault();
