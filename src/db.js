@@ -192,7 +192,7 @@ export async function allSettings(db) {
  * `enabledPlatforms` decides which start switched on; anything omitted is
  * created but off, so it is one click away rather than missing.
  */
-export const DEFAULT_ENABLED_PLATFORMS = ['linkedin', 'x', 'instagram', 'youtube'];
+export const DEFAULT_ENABLED_PLATFORMS = ['linkedin', 'x', 'threads', 'instagram', 'youtube'];
 
 export async function seedVariants(db, postId, composed, enabledPlatforms) {
   const on = new Set(enabledPlatforms?.length ? enabledPlatforms : DEFAULT_ENABLED_PLATFORMS);

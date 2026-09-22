@@ -391,6 +391,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<'
 const ICONS = {
   linkedin: '<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM9 9h3.8v1.7h.05c.53-1 1.82-2.05 3.75-2.05 4 0 4.4 2.5 4.4 5.9V21h-4v-5.2c0-1.24-.02-2.84-1.9-2.84-1.9 0-2.2 1.36-2.2 2.75V21H9z"/></svg>',
   x: '<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.2 8.3L23.3 22h-6.6l-5.2-6.8L5.5 22H2.4l7.7-8.8L1.1 2h6.8l4.7 6.2zm-1.1 18h1.7L7.3 3.8H5.5z"/></svg>',
+  threads: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 21.5c-5.1 0-8.2-3.2-8.2-9.5S7.2 2.5 12.2 2.5c3.6 0 6 1.5 7.1 4.2"/><path d="M8.9 13.6c0-1.7 1.6-2.8 4-2.8 3 0 4.7 1.5 4.7 3.9 0 2.3-1.4 3.6-3 3.6-1.5 0-2.3-1-2.5-2.6-.3-2.6-.2-6 2.8-6.6"/></svg>',
   instagram: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.6" cy="6.4" r="1.2" fill="currentColor" stroke="none"/></svg>',
   tiktok: '<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M16.6 5.82A4.28 4.28 0 0 1 15.54 3h-3.09v12.4a2.59 2.59 0 1 1-1.79-2.46V9.79a5.86 5.86 0 1 0 4.88 5.77V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3a4.29 4.29 0 0 1-3.24-1.48z"/></svg>',
   youtube: '<svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.6-.46-5.3a2.8 2.8 0 0 0-1.96-2C18.82 4.2 12 4.2 12 4.2s-6.82 0-8.58.5a2.8 2.8 0 0 0-1.96 2C1 8.4 1 12 1 12s0 3.6.46 5.3c.26.95 1 1.7 1.96 1.96 1.76.5 8.58.5 8.58.5s6.82 0 8.58-.5a2.8 2.8 0 0 0 1.96-1.96C23 15.6 23 12 23 12zM9.8 15.3V8.7l5.7 3.3z"/></svg>',
@@ -553,7 +554,7 @@ function variantOf(p) {
 const parse = (v) => { try { return typeof v === 'object' && v !== null ? v : JSON.parse(v || '{}'); } catch { return {}; } };
 
 function renderPlatforms() {
-  $('#platforms').innerHTML = (S.platforms.length ? S.platforms : ['linkedin', 'x', 'instagram', 'youtube']).map((p) => {
+  $('#platforms').innerHTML = (S.platforms.length ? S.platforms : ['linkedin', 'x', 'threads', 'instagram', 'youtube']).map((p) => {
     const v = variantOf(p);
     const r = S.rules[p] || {};
     const on = !!v.enabled;
@@ -574,7 +575,7 @@ function renderPlatforms() {
             <button type="button" data-val="short" class="${(parse(v.options).youtube_format || 'short') === 'short' ? 'on' : ''}">Short</button>
             <button type="button" data-val="video" class="${parse(v.options).youtube_format === 'video' ? 'on' : ''}">Regular video</button>
           </div>` : ''}
-          ${p === 'x' ? `<div class="seg seg-sm" data-mode="thread" style="margin:0">
+          ${p === 'x' || p === 'threads' ? `<div class="seg seg-sm" data-mode="thread" style="margin:0">
             <button type="button" data-val="single" class="${parse(v.options).thread ? '' : 'on'}">Single post</button>
             <button type="button" data-val="thread" class="${parse(v.options).thread ? 'on' : ''}">Thread</button>
           </div>` : ''}
@@ -589,14 +590,18 @@ function renderPlatforms() {
           <button class="emoji-btn" data-emoji-body style="float:right;margin-top:-2px">🙂</button></span>
           <textarea data-f="body" rows="${p === 'x' ? 4 : 7}">${esc(v.body)}</textarea></label>
         <div class="counter" data-counter></div>
-        <label class="fld" style="margin-top:12px"><span>First comment ${p === 'linkedin' ? '— where your link belongs on LinkedIn' : '(optional)'}
+        ${p === 'threads' ? '' : `<label class="fld" style="margin-top:12px"><span>First comment ${p === 'linkedin' ? '— where your link belongs on LinkedIn' : '(optional)'}
           <button class="emoji-btn" data-emoji-comment style="float:right;margin-top:-2px">🙂</button></span>
-          <textarea data-f="first_comment" rows="3" placeholder="Line breaks work here.">${esc(v.first_comment)}</textarea></label>
+          <textarea data-f="first_comment" rows="3" placeholder="Line breaks work here.">${esc(v.first_comment)}</textarea></label>`}
         <div class="row">
-          <label class="fld"><span>Hashtags (comma separated, no #)
+          ${p === 'threads' ? `<label class="fld"><span>Topic tag — Threads allows exactly one, and spaces are fine
+            <button class="btn-sm" data-act="suggest-tags" style="float:right;margin-top:-3px;font-weight:500;text-transform:none;letter-spacing:0">Suggest</button></span>
+            <input type="text" data-f="topic" maxlength="50" placeholder="e.g. ad tech" value="${esc(parse(v.options).threads_topic_tag || '')}">
+            <div data-tag-suggestions style="margin-top:7px"></div></label>`
+          : `<label class="fld"><span>Hashtags (comma separated, no #)
             <button class="btn-sm" data-act="suggest-tags" style="float:right;margin-top:-3px;font-weight:500;text-transform:none;letter-spacing:0">Suggest</button></span>
             <input type="text" data-f="hashtags" value="${esc(Array.isArray(tags) ? tags.join(', ') : '')}">
-            <div data-tag-suggestions style="margin-top:7px"></div></label>
+            <div data-tag-suggestions style="margin-top:7px"></div></label>`}
           <label class="fld"><span>Stagger — minutes after send time</span>
             <input type="text" inputmode="numeric" data-f="offset_min" value="${esc(v.offset_min || 0)}"></label>
         </div>
@@ -619,6 +624,21 @@ function renderPlatforms() {
         const f = inp.dataset.f;
         if (f === 'hashtags') v.hashtags = JSON.stringify(inp.value.split(',').map((s) => s.trim().replace(/^#/, '')).filter(Boolean));
         else if (f === 'offset_min') v.offset_min = parseInt(inp.value, 10) || 0;
+        else if (f === 'topic') {
+          // The Threads topic tag is a publish option, not a caption field.
+          // Threads rejects a topic containing "." or "&", so strip them as
+          // they are typed — and put the cleaned value back in the box, so
+          // what you see is what gets sent.
+          const o = parse(v.options);
+          const clean = inp.value.replace(/^#/, '').replace(/[.&]/g, '');
+          if (clean !== inp.value) {
+            const at = inp.selectionStart;
+            inp.value = clean;
+            try { inp.setSelectionRange(at - 1, at - 1); } catch { /* not a text input */ }
+          }
+          if (clean) o.threads_topic_tag = clean; else delete o.threads_topic_tag;
+          v.options = JSON.stringify(o);
+        }
         else v[f] = inp.value;
         S.dirty = true;
         // Keep an open preview in step with what is being typed.
@@ -640,8 +660,11 @@ function renderPlatforms() {
     card.querySelector('[data-act=suggest-tags]').onclick = async (e) => {
       e.preventDefault();
       const box = card.querySelector('[data-tag-suggestions]');
-      const field = card.querySelector('[data-f=hashtags]');
-      const current = () => field.value.split(',').map((t) => t.trim().replace(/^#/, '')).filter(Boolean);
+      const isTopic = p === 'threads';
+      const field = card.querySelector(isTopic ? '[data-f=topic]' : '[data-f=hashtags]');
+      const current = () => (isTopic
+        ? [field.value.trim().replace(/^#/, '')].filter(Boolean)
+        : field.value.split(',').map((t) => t.trim().replace(/^#/, '')).filter(Boolean));
       box.innerHTML = '<span class="muted" style="font-size:12.5px">thinking…</span>';
       try {
         // Read the platform's own caption, since each says something different.
@@ -654,17 +677,25 @@ function renderPlatforms() {
           return;
         }
         box.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          ${r.suggestions.map((t) => `<button type="button" class="btn-sm" data-tag="${esc(t)}">+ #${esc(t)}</button>`).join('')}
-          <span class="muted" style="font-size:12px">${S.rules[p]?.label || p} rewards ${r.idealMin}–${r.idealMax}</span>
+          ${r.suggestions.map((t) => `<button type="button" class="btn-sm" data-tag="${esc(t)}">${isTopic ? '' : '+ #'}${esc(t)}</button>`).join('')}
+          <span class="muted" style="font-size:12px">${isTopic ? 'Threads takes one topic tag' : `${S.rules[p]?.label || p} rewards ${r.idealMin}–${r.idealMax}`}</span>
         </div>`;
         box.querySelectorAll('[data-tag]').forEach((b) => {
           b.onclick = (ev) => {
             ev.preventDefault();
-            const next = [...new Set([...current(), b.dataset.tag])];
-            field.value = next.join(', ');
-            v.hashtags = JSON.stringify(next);
+            if (isTopic) {
+              // One tag only — picking a new one replaces the old.
+              field.value = b.dataset.tag;
+              const o = parse(v.options);
+              o.threads_topic_tag = b.dataset.tag;
+              v.options = JSON.stringify(o);
+            } else {
+              const next = [...new Set([...current(), b.dataset.tag])];
+              field.value = next.join(', ');
+              v.hashtags = JSON.stringify(next);
+            }
             S.dirty = true;
-            b.remove();
+            if (!isTopic) b.remove();
             liveAudit();
           };
         });
@@ -683,20 +714,22 @@ function renderPlatforms() {
           if (field === 'thread') {
             const on = b.dataset.val === 'thread';
             opts.thread = on;
-            opts.x_long_text_as_post = false;
+            // The auto-thread flag is named per platform.
+            if (p === 'threads') opts.threads_long_text_as_post = false;
+            else opts.x_long_text_as_post = false;
             // Rebuild the draft for the chosen shape: a thread keeps the whole
-            // argument, a single post is trimmed to fit 280.
+            // argument, a single post is trimmed to the platform's limit.
             const r = await api('/compose', {
               method: 'POST',
               body: {
                 master: $('#fMaster').value, link_url: $('#fLink').value,
-                media_kind: S.current?.media_kind || 'none', only: ['x'],
-                opts: { xThread: on },
+                media_kind: S.current?.media_kind || 'none', only: [p],
+                opts: p === 'threads' ? { threadsThread: on } : { xThread: on },
               },
             });
-            if (r.variants?.x) {
-              v.body = r.variants.x.body;
-              v.hashtags = JSON.stringify(r.variants.x.hashtags || []);
+            if (r.variants?.[p]) {
+              v.body = r.variants[p].body;
+              v.hashtags = JSON.stringify(r.variants[p].hashtags || []);
             }
           } else {
             opts[field] = b.dataset.val;
@@ -869,14 +902,19 @@ function mediaBlock(vertical, slide = 0) {
 }
 
 /** Mirrors the server's thread split so the preview tracks live edits. */
-function splitForPreview(text, cap = 280) {
+function splitForPreview(text, cap = 280, mode = 'x') {
   const sents = (text || '').split(/(?<=[.!?])\s+|\n+/).map((t) => t.trim()).filter(Boolean);
   const parts = [];
   let cur = '';
-  const weigh = (t) => {
-    const urls = t.match(/https?:\/\/[^\s]+/g) || [];
-    return [...t.replace(/https?:\/\/[^\s]+/g, '')].length + urls.length * 23;
-  };
+  // X bills every link at a flat 23 characters; Threads bills the real text
+  // in UTF-8 bytes. Using the wrong one makes the preview claim the wrong
+  // number of posts.
+  const weigh = mode === 'threads'
+    ? (t) => new TextEncoder().encode(t).length
+    : (t) => {
+      const urls = t.match(/https?:\/\/[^\s]+/g) || [];
+      return [...t.replace(/https?:\/\/[^\s]+/g, '')].length + urls.length * 23;
+    };
   for (const sent of sents) {
     const next = cur ? `${cur} ${sent}` : sent;
     if (weigh(next) > cap - 6 && cur) { parts.push(cur); cur = sent; } else { cur = next; }
@@ -924,6 +962,27 @@ function previewFor(platform) {
         </div>`).join('')}
     </div>
     ${posts.length > 1 ? `<p class="pv-note">Posts as a thread of ${posts.length}.</p>` : ''}`;
+  }
+
+  if (platform === 'threads') {
+    const opts = parse(v.options);
+    const split = opts.thread ? splitForPreview(body, r.maxChars, 'threads') : [];
+    const posts = split.length > 1 ? split : [body];
+    const topic = (opts.threads_topic_tag || '').trim();
+    return `<div class="pv">
+      ${posts.map((part, i) => `
+        <div class="${i ? 'pv-thread' : ''}">
+          <div class="pv-head">${av}<div class="pv-who">
+            <div class="pv-name">${esc(handle)} <span class="pv-sub">· now</span></div></div></div>
+          <div class="pv-body">${i === 0 ? folded(part, r.foldChars) : linkify(part)}</div>
+          ${i === 0 && topic ? `<div class="pv-sub" style="padding:2px 0 0">#${esc(topic)}</div>` : ''}
+          ${i === 0 ? mediaBlock(false) : ''}
+          <div class="pv-bar"><span>Like</span><span>Reply</span><span>Repost</span><span>Share</span></div>
+        </div>`).join('')}
+    </div>
+    <p class="pv-note">${posts.length > 1
+      ? `Posts as a thread of ${posts.length}.`
+      : `Collapses under “… more” around ${r.foldChars} characters.`} Links here are tappable.${topic ? '' : ' No topic tag set — Threads allows one, and it helps the post get found.'}</p>`;
   }
 
   if (platform === 'instagram') {
@@ -1196,9 +1255,17 @@ function renderCounter(card, p) {
   const v = variantOf(p);
   const r = S.rules[p] || {};
   const el = card.querySelector('[data-counter]');
-  const n = [...(v.body || '')].length;
+  // Threads counts UTF-8 bytes, so an emoji there can cost four. Everywhere
+  // else it is what a reader sees.
+  const n = p === 'threads'
+    ? new TextEncoder().encode(v.body || '').length
+    : [...(v.body || '')].length;
   const cap = p === 'x' && S.settings.xPremium ? r.maxCharsPremium : r.maxChars;
   const bits = [`<span class="${n > cap ? 'over' : ''}"><b>${n.toLocaleString()}</b> / ${(cap || 0).toLocaleString()}</span>`];
+  if (p === 'threads') {
+    const seen = [...(v.body || '')].length;
+    if (n > seen) bits.push(`<span title="Threads bills emoji and accented characters as their UTF-8 bytes">${seen} on screen</span>`);
+  }
   if (r.foldChars) bits.push(`fold at <b>${r.foldChars}</b>`);
   if (p === 'youtube') {
     const t = [...(v.headline || '')].length;
@@ -1733,10 +1800,13 @@ async function openComments(postId) {
   for (const t of d.threads || []) {
     const label = S.rules[t.platform]?.label || t.platform;
     const mod = S.rules[t.platform]?.comments?.moderation || [];
+    const canDelete = S.rules[t.platform]?.comments?.canDelete !== false;
+    const partial = S.rules[t.platform]?.comments?.partial === true;
     blocks.push(`<div class="card" data-thread="${esc(t.platform)}">
       <h2>${ICONS[t.platform] || ''} ${esc(label)}
         <span class="muted" style="font-weight:400;font-size:13px;margin-left:auto">${t.comments.length} comment${t.comments.length === 1 ? '' : 's'}</span>
       </h2>
+      ${partial ? '<p class="muted" style="font-size:12.5px;margin:-4px 0 10px">Threads only returns part of a thread through the API, and replies cannot be deleted from here — open the post to do either.</p>' : ''}
       ${t.comments.length ? t.comments.map((c) => `
         <div class="cmt" data-cid="${esc(c.id)}">
           <div class="cmt-av">${esc((c.author || '?').slice(0, 2).toUpperCase())}</div>
@@ -1749,7 +1819,7 @@ async function openComments(postId) {
               <button class="btn-sm" data-act="reply">Reply</button>
               ${mod.includes('hide') ? '<button class="btn-sm" data-act="hide">Hide</button>' : ''}
               ${mod.includes('pin') ? '<button class="btn-sm" data-act="pin">Pin</button>' : ''}
-              <button class="btn-sm" data-act="del" style="color:var(--bad)">Delete</button>
+              ${canDelete ? '<button class="btn-sm" data-act="del" style="color:var(--bad)">Delete</button>' : ''}
             </div>
             <div class="cmt-reply hide">
               <textarea placeholder="Reply as you…  Enter starts a new line."></textarea>
@@ -1824,7 +1894,9 @@ function wireCommentActions(box, data) {
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); }
       });
 
-      row.querySelector('[data-act=del]').onclick = async () => {
+      // Absent where the platform cannot delete a comment over the API.
+      const delBtn = row.querySelector('[data-act=del]');
+      if (delBtn) delBtn.onclick = async () => {
         if (!confirm('Delete this comment? It cannot be undone.')) return;
         try {
           await api('/comments/delete', { method: 'POST', body: { platform, comment_id: commentId, post_id: thread?.postId } });

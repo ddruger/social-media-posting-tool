@@ -68,6 +68,19 @@ export function xWeightedLength(text, urlCost = 23) {
   return count + urls.length * urlCost;
 }
 
+/**
+ * Threads bills a post in UTF-8 bytes, not characters.
+ *
+ * Meta's API doc says posts are capped at 500 characters "with emojis counted
+ * as UTF-8 bytes" — so an emoji that looks like one character can cost four,
+ * and an em dash or a curly quote costs three. Plain English text is 1 byte a
+ * character, so for most posts this reads identically to a normal count; it
+ * only diverges exactly where a naive counter would let you overrun.
+ */
+export function threadsWeightedLength(text) {
+  return new TextEncoder().encode(text || '').length;
+}
+
 export function firstLineOf(text) {
   const t = (text || '').trim();
   const nl = t.indexOf('\n');
@@ -484,6 +497,98 @@ function auditX(v, ctx, f) {
   }
 }
 
+function auditThreads(v, ctx, f) {
+  const r = RULES.threads;
+  const body = v.body || '';
+  const opts = safeJson(v.options);
+  const asThread = Boolean(opts.thread);
+  const bytes = threadsWeightedLength(body);
+  const chars = len(body);
+  // Only worth explaining the difference when there actually is one.
+  const byteNote = bytes > chars
+    ? ` (${chars} characters, but Threads bills emoji and accented characters as their UTF-8 bytes, so this counts as ${bytes})`
+    : '';
+
+  if (bytes > r.maxChars) {
+    if (asThread) {
+      // Rough, because the real split lands on sentence boundaries — enough
+      // to tell you roughly how long the thread will run.
+      const approx = Math.ceil(bytes / (r.maxChars - 6));
+      f.push(ok('th-thread', 'Posts as a thread', `${bytes} characters${byteNote}, which Threads splits across about ${approx} posts. Nothing is lost.`));
+    } else {
+      f.push(block(
+        'th-too-long',
+        'Over the Threads limit',
+        `${bytes} of ${r.maxChars} characters${byteNote}. Trim ${bytes - r.maxChars}, or post it as a thread.`,
+        { action: 'split-thread', label: 'Post as a thread' },
+      ));
+    }
+  } else if (bytes >= r.idealMin && bytes <= r.idealMax) {
+    f.push(ok('th-length', 'Good length for Threads', `${bytes} characters${byteNote} — Threads rewards short.`));
+  } else if (bytes < r.idealMin) {
+    f.push(ok('th-length', 'Short and punchy', `${bytes} characters${byteNote}.`));
+  } else {
+    f.push(tip('th-length', 'Longer than Threads tends to reward', `${bytes} of ${r.maxChars} characters${byteNote}. Threads reads fast; ${r.idealMin}–${r.idealMax} is the comfortable band.`));
+  }
+
+  hookChecks(body, r.foldChars, f, `${r.foldChars} characters`);
+
+  // ── Topic tag, which is not a hashtag ──────────────────────────────────
+  const tags = collectTags(v, body);
+  const topic = (opts.threads_topic_tag || '').trim();
+
+  if (topic) {
+    const bad = (r.topicTag.forbidden || []).filter((c) => topic.includes(c));
+    if (bad.length) {
+      f.push(block('th-topic-chars', 'Topic tag has a character Threads rejects', `"${topic}" contains ${bad.map((c) => `"${c}"`).join(' and ')}. Threads topic tags cannot contain a period or an ampersand.`));
+    } else if (len(topic) > r.topicTag.maxChars) {
+      f.push(block('th-topic-long', 'Topic tag is too long', `${len(topic)} characters against a ${r.topicTag.maxChars} limit.`));
+    } else {
+      f.push(ok('th-topic', 'One topic tag set', `"${topic}". Threads allows exactly one, and Meta says tagged posts typically take more views than untagged ones.`));
+    }
+    if (tags.length) {
+      f.push(warn(
+        'th-topic-and-tags',
+        'Hashtags on top of the topic tag do nothing',
+        `You have a topic tag and ${tags.length} hashtag${tags.length === 1 ? '' : 's'}. Threads has no hashtags — the extra ones sit in the caption as plain text and classify nothing. Clear the hashtag field.`,
+      ));
+    }
+  } else if (tags.length > 1) {
+    f.push(warn(
+      'th-tags-many',
+      'Threads takes one topic tag, not a stack of hashtags',
+      `${tags.length} tags. Threads links exactly one topic per post — the rest are plain text. Pick the single best one and put it in the Topic tag field.`,
+      { action: 'tags-to-topic', label: 'Use the first as the topic tag' },
+    ));
+  } else if (tags.length === 1) {
+    f.push(tip(
+      'th-tags-one',
+      'Move this into the Topic tag field',
+      `#${tags[0]} in the caption is plain text on Threads. The Topic tag field is what actually links it to the topic feed, and it allows spaces.`,
+      { action: 'tags-to-topic', label: 'Make it the topic tag' },
+    ));
+  } else {
+    f.push(tip('th-no-topic', 'No topic tag', 'Threads allows one per post, and Meta says tagged posts typically take more views. It is a tiebreaker rather than a multiplier, but it is free.'));
+  }
+
+  emojiChecks(body, r, f);
+
+  // ── Links ──────────────────────────────────────────────────────────────
+  const urls = urlsIn(body);
+  if (urls.length > r.links.max) {
+    f.push(block('th-links', 'Too many links', `${urls.length} links against a limit of ${r.links.max}, enforced since 22 Dec 2025. The post would be rejected.`));
+  } else if (urls.length) {
+    f.push(ok('th-link', 'Links are clickable here', `${urls.length} link${urls.length === 1 ? '' : 's'}. Unlike Instagram and TikTok, Threads makes them tappable — and unlike LinkedIn, there is no known reach penalty.`));
+  }
+
+  if ((ctx.items || []).length > 1) carouselChecks('threads', r, ctx.items, f);
+  else mediaChecks('threads', r, ctx.media, ctx.mediaKind, f, ctx.hasMedia !== false);
+
+  if (ctx.mediaKind === 'none') {
+    f.push(ok('th-text', 'Text-only is native here', 'Threads is a text-first feed — a post needs no media at all.'));
+  }
+}
+
 function auditInstagram(v, ctx, f) {
   const r = RULES.instagram;
   const body = v.body || '';
@@ -672,6 +777,7 @@ function timingCheck(platform, ctx, f) {
 const AUDITORS = {
   linkedin: auditLinkedIn,
   x: auditX,
+  threads: auditThreads,
   instagram: auditInstagram,
   tiktok: auditTikTok,
   youtube: auditYouTube,

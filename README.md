@@ -2,12 +2,13 @@
 
 **Write once, audit against each platform's best practices, schedule everywhere.**
 
-Write the caption once. Get five platform-native versions — LinkedIn, X,
-Instagram, TikTok and YouTube Shorts. Each one audited against that platform's
-current rules before it goes out. Then schedule all five in one click.
+Write the caption once. Get six platform-native versions — LinkedIn, X,
+Threads, Instagram, TikTok and YouTube Shorts. Each one audited against that
+platform's current rules before it goes out. Then schedule them all in one
+click.
 
-Replaces uploading the same video five times, rewriting the caption five times,
-and scheduling natively in five different apps.
+Replaces uploading the same video six times, rewriting the caption six times,
+and scheduling natively in six different apps.
 
 ## Install it
 
@@ -33,19 +34,20 @@ rough thought before it becomes a post. It asks what you actually saw, offers
 angles, and tells you when the take is just conventional wisdom. It
 deliberately **won't write the post until you ask** — the point is the riff,
 not the generation. When you're happy, it writes the baseline caption and
-turns on the platforms the idea genuinely suits, rather than all five.
+turns on the platforms the idea genuinely suits, rather than all six.
 
 Needs an Anthropic API key. Everything below does not.
 
 **1. You write one caption.** However you'd say it, hashtags at the end, link
 wherever. One box.
 
-**2. It builds five drafts.** Not copies — different shapes:
+**2. It builds six drafts.** Not copies — different shapes:
 
 | | What it does differently |
 |---|---|
 | **LinkedIn** | Breaks the wall of text into short paragraphs and puts a line break after the hook, so the first 140 characters land on their own (that's the mobile "…see more" fold). Targets the 1,300–2,500 character band. 3–5 hashtags, which is LinkedIn's own recommendation. |
 | **X** | Cuts to the sharpest idea that fits in 280, counting every link as 23 characters like X does. Drops to 0–2 hashtags. Offers to split into a thread instead. |
+| **Threads** | Counts in **UTF-8 bytes**, which is how Meta bills the 500-character limit, so emoji cost more than they look. Converts your hashtags into the **single topic tag** Threads actually supports and clears the rest — Threads has no hashtags. Leaves the link in the body, where it stays clickable and costs no reach. Offers to split into a thread. |
 | **Instagram** | Strips the URL (it isn't clickable there) and swaps in "Link in bio". Caps hashtags at 5 — Instagram made that a hard platform limit in December 2025. |
 | **TikTok** | Keeps it short and breaks after the hook. Holds you to **2,200 characters — the API limit, not the 4,000 the app shows you** — because that is what actually binds when posting through a tool. Strips the URL (not clickable) and caps at 5 hashtags. |
 | **YouTube Shorts** | Pulls a title out of your opening line and keeps the hook inside the ~40 characters that show in the feed. Strips `#Shorts`, which stopped being necessary in October 2024. |
@@ -67,7 +69,7 @@ the post body and the first comment in either direction.
 It checks your video too — duration, aspect ratio, resolution — so you find out
 a landscape clip can't be a Short *before* you schedule it, not after.
 
-**4. It schedules everywhere at once.** One button, all five. Posts are handed to
+**4. It schedules everywhere at once.** One button, all six. Posts are handed to
 Upload-Post with a send time, so **they fire from their servers** — your laptop
 does not need to be on.
 
@@ -87,7 +89,7 @@ covers everything here comfortably. You already have an account.
 
 **Upload-Post — the thing that actually posts.**
 [Upload-Post](https://upload-post.com) has already registered as a developer
-with all five platforms and passed the reviews each one requires. You connect
+with all six platforms and passed the reviews each one requires. You connect
 your accounts to them once, and they hand this tool a single key that posts
 everywhere. Free for 10 posts a month, $24/month unlimited.
 
@@ -104,28 +106,30 @@ September 2026:
 | **Instagram** | Genuinely easy | A Meta app in Development mode with your own account added as an Instagram Tester. **No App Review at all.** Review is only needed when other people connect. |
 | **X** | Works, costs pennies | The free tier closed to new developers in Feb 2026. Now pay-per-use: $0.015 a post, **$0.20 if it contains a link**. At a normal cadence that's a few dollars a month, but it needs a card on file. |
 | **YouTube** | Works, with a recurring annoyance | While your Google Cloud app is in "Testing", **refresh tokens die every 7 days** — you would re-authorise weekly forever. Fixing that means publishing the app to Production, and video upload is a sensitive scope, so that needs Google verification. |
+| **Threads** | Genuinely easy | Same Meta app as Instagram, and the Threads API is open self-serve. 250 posts per profile per day. |
 | **TikTok** | **Blocked** | The Content Posting API requires an audit: 2–4 weeks and several rounds of feedback. Until it passes, every post is forced to SELF_ONLY *and your account has to be private*. There is no personal-use exemption. |
 
-So three of the five are very doable, YouTube is doable but nags, and TikTok is
+So four of the six are very doable, YouTube is doable but nags, and TikTok is
 a genuine wall.
 
 The stronger argument for Upload-Post isn't approvals — it's the media
 plumbing. Each platform uploads video completely differently: LinkedIn
 registers then uploads then creates, Instagram builds a container and you poll
 it until it's ready, YouTube wants a resumable upload, X wants chunked upload.
-That's five protocols, five token-refresh schemes and five sets of error
-handling to write and then keep working as each platform changes. One key
-replaces all of it.
+That's a protocol, a token-refresh scheme and a set of error handling per
+platform to write and then keep working as each one changes. One key replaces
+all of it.
 
 **If you'd rather not use a third party at all**, the honest option is to drop
-TikTok and integrate the other four directly. That's real work, and it moves
-the setup burden from one signup to four developer portals — but it's possible,
-and nothing about this tool's design prevents it. The audit and the five drafts
-are the interesting part, and they don't depend on how posting happens.
+TikTok and integrate the other five directly. That's real work, and it moves
+the setup burden from one signup to several developer portals — but it's
+possible, and nothing about this tool's design prevents it. The audit and the
+drafts are the interesting part, and they don't depend on how posting
+happens.
 
 **Worth being clear about the tradeoff:** Upload-Post is a small third-party
 company, and connecting your accounts gives them permission to post as you on
-all five platforms. That's the same deal as any scheduling tool — Buffer,
+all six platforms. That's the same deal as any scheduling tool — Buffer,
 Later, Hootsuite all work this way — but it is a real decision and you should
 make it deliberately rather than because a README told you to. You can revoke
 access at any time from each platform's own settings, and you can delete the
@@ -172,14 +176,14 @@ When it finishes, Cloudflare shows your URL — something like
 password you chose, and bookmark it. That's your tool.
 
 Then do [Step 6](#step-6--connect-your-social-accounts) below to connect your
-five accounts. That part is unavoidably a browser job, but it's just clicking
+each account. That part is unavoidably a browser job, but it's just clicking
 "Connect" and approving.
 
 > **On the free Upload-Post plan:** one API call counts as one upload, and
-> posting to all five platforms at the same time is **one call**. So 10 posts a
-> month means 10 rounds of all-five. If you set different send times per
-> platform (the "stagger" field), each distinct time is a separate call — five
-> staggered platforms burns five of your ten.
+> posting to every platform at the same time is **one call**. So 10 posts a
+> month means 10 rounds of all-six. If you set different send times per
+> platform (the "stagger" field), each distinct time is a separate call — six
+> staggered platforms burns six of your ten.
 
 ---
 
@@ -234,7 +238,7 @@ first.
 
 (The **Connect accounts** button in Social Studio opens the same flow. Either
 route works — the dashboard is easier the first time because you can see the
-connection status of all five at once.)
+connection status of all six at once.)
 
 #### Prerequisites, per platform
 
@@ -246,6 +250,7 @@ will get stuck mid-flow.
 | **Instagram** | A **Business or Creator** account — personal accounts cannot be posted to by any tool, and that's Meta's rule. Switch in the Instagram app: Settings → Account type. It must also be **email/phone verified**, and you must approve **every** permission in the OAuth screen. A 400 error on connect means one of those three. |
 | **LinkedIn** | Nothing. Posts to your personal profile, or a company page if you'd rather. |
 | **X** | Nothing. |
+| **Threads** | A Threads profile linked to your Instagram account. If you can post on Threads yourself, you're ready. |
 | **TikTok** | Nothing. Posts go out public by default. |
 | **YouTube** | Nothing. It will ask for permission to upload videos — that's expected. Note custom thumbnails aren't supported on Shorts (YouTube's limitation), so the tool doesn't offer one. |
 
@@ -264,6 +269,7 @@ fails to go out:
 | LinkedIn | ~60 days | you change your LinkedIn password |
 | TikTok | ~60 days (auto-renews with regular use) | |
 | Instagram | varies | you change your Facebook password |
+| Threads | ~60 days | you change your Instagram password |
 | YouTube | ~6 months | |
 | X | rarely expires | |
 
@@ -276,9 +282,9 @@ Upload-Post dashboard before assuming the tool is broken. Social Studio's
 These are the platforms' own caps, not Upload-Post's. You are nowhere near
 them at a normal posting cadence, but for reference:
 
-| Instagram | TikTok | YouTube | LinkedIn | X |
-|---|---|---|---|---|
-| 50/day | 15/day | 30/day | 150/day | 50/day |
+| Instagram | Threads | TikTok | YouTube | LinkedIn | X |
+|---|---|---|---|---|---|
+| 50/day | 250/day | 15/day | 30/day | 150/day | 50/day |
 
 Done. Bookmark the URL.
 
@@ -326,6 +332,7 @@ and the audit holds each platform to its own:
 | **LinkedIn** | up to 20 | Past about 9 it reads as a dump, so that's where the warning starts. |
 | **Instagram** | up to 10 | The app allows 20, but **every scheduling tool goes through Meta's API, which stops at 10.** Longer carousels have to be posted by hand. |
 | **X** | up to 4 | Hard limit. |
+| **Threads** | up to 20 | Images and video can be mixed. Past about 10 people stop swiping, so that's where the warning starts. |
 | **TikTok** | up to 35 | Photo posts. |
 | **YouTube** | — | Video only; extra files are ignored. |
 
@@ -368,7 +375,7 @@ When publishing or scheduling there's an optional **Send unpublished where the
 platform allows it**. Useful because mentions that need to link — LinkedIn's
 especially — have to be typed in the app.
 
-Only two of the five can accept something unpublished, and that's a platform
+Only two of the six can accept something unpublished, and that's a platform
 limit rather than a gap here:
 
 | | Unpublished? | What happens |
@@ -387,8 +394,8 @@ when you come back to it.
 
 ### On tagging people
 
-`@mentions` work as you'd expect on **X, Instagram, TikTok and YouTube** — type
-`@handle` and it links.
+`@mentions` work as you'd expect on **X, Threads, Instagram, TikTok and
+YouTube** — type `@handle` and it links.
 
 **LinkedIn is the exception.** Its API needs a mention encoded as
 `@[Name](urn:li:person:xxxx)` — an internal ID you can't reasonably look up. A
@@ -406,9 +413,10 @@ ranking keys off, so speed matters here more than it sounds.
 Reply, delete, and — on TikTok only, because it's the only one the API
 supports it for — hide and pin.
 
-**X isn't covered.** Upload-Post's comment endpoints reach Instagram,
-Facebook, YouTube, LinkedIn and TikTok, but not X. The tool says so and links
-straight to the post instead of pretending there's nothing there.
+**Threads is partial.** Upload-Post returns only part of a Threads
+conversation, and deleting a reply isn't supported there at all. The tool says
+so on the thread and links straight to the post, rather than quietly showing
+you an incomplete picture as if it were the whole one.
 
 A post only appears once it has published and the tool knows where it landed,
 which happens on the next status refresh.
@@ -443,7 +451,7 @@ The name and handle in previews come from Settings.
   sends as soon as you press the button. Switch to **Schedule for later** to
   pick a time. The audit runs either way; blocking issues still stop it.
 - **TikTok starts switched off.** Flip it on per post, or change which
-  platforms start on in Settings.
+  platforms start on in Settings. Threads starts **on**.
 - **Stagger** — minutes after your send time, per platform. Set LinkedIn to 0
   and X to 30 to avoid posting the identical thing everywhere at the same
   minute. Remember it costs an extra upload on the free plan.
@@ -465,7 +473,7 @@ Every number is tagged in `src/rules.js` with its source:
 `[SOFT]` numbers only ever produce tips, never blockers. The blockers are all
 things that will actually be rejected or actually cap your reach.
 
-The main ones, verified 19 September 2026:
+The main ones, verified 22 September 2026:
 
 | Rule | Source |
 |---|---|
@@ -480,12 +488,16 @@ The main ones, verified 19 September 2026:
 | TikTok registers only the first 5 hashtags | TikTok, Aug 2025 |
 | TikTok engagement peaks at 15–34s; 120s+ favours views | Socialinsider 2026 — 6M+ brand videos |
 | TikTok best times Tue–Thu 2–6pm | Sprout Social 2026 — ~2B engagements, 307k profiles |
+| Threads 500 chars, emoji billed as UTF-8 bytes | Meta Threads API docs |
+| Threads: exactly **one** topic tag per post, 1–50 chars | @threads, Dec 2023 — "You can only tag one topic per post" |
+| Threads carousel 2–20 items; video ≤5 min; 5 links max | Meta Threads API docs |
+| Threads best times: weekday mornings 6–11am, peak Thu 9am | Buffer — 2.5M Threads posts |
 | X 280 / 25,000 Premium; every link bills 23 chars | X |
 | X 1–2 hashtags ≈ +21% engagement; 5+ ≈ −17% reach | 2026 engagement analyses |
 | X video 140s free; Premium 4h web/iOS but 10 min Android | X |
 | Best posting times | Buffer (9.6M Instagram posts), Sprout Social, Emplifi 2026 |
 
-### Three things worth knowing
+### Four things worth knowing
 
 **The LinkedIn "link in the first comment" trick is no longer a clean win.**
 This tool used to do it automatically. It doesn't any more. The 2026 data
@@ -497,6 +509,16 @@ your link. The tool now leaves the link in the post and explains the tradeoff,
 with a one-click button if you want to move it anyway. Contrary evidence
 exists too: a separate Q1 2026 analysis of ~400,000 posts found posts with
 several external links *out-performed* posts with none.
+
+**Threads has no hashtags — it has one topic tag.** This is the difference
+that trips people up when they cross-post from Instagram: Threads allows
+exactly one topic per post, and Meta says so explicitly ("You can only tag one
+topic per post, so select a topic that best represents what you're saying").
+Stacked `#hashtags` aren't rejected, they just sit there as plain text and
+classify nothing — and Threads hides them outright on Instagram cross-posts.
+So the Threads card swaps the hashtag box for a single Topic tag field, which
+also accepts spaces. Meta says tagged posts typically take more views than
+untagged ones, but it's a tiebreaker, not a multiplier.
 
 **TikTok's caption limit is 2,200 here, not the 4,000 you see in the app.**
 TikTok's Content Posting API caps titles at 2,200 UTF-16 runes, and everything
@@ -584,7 +606,7 @@ It uses a separate local database, so nothing here touches a deployed copy.
 src/
   rules.js        Every best-practice number, with sources. Edit this one.
   audit.js        The checks. Scores, findings, one-click fixes.
-  compose.js      Turns one caption into five platform-native drafts.
+  compose.js      Turns one caption into six platform-native drafts.
   ai.js           The optional "rewrite in your voice" button.
   uploadpost.js   Talks to Upload-Post. Verified against their OpenAPI spec.
   db.js           Database helpers.

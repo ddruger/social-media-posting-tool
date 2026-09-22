@@ -12,16 +12,17 @@
  *
  * Treat [SOFT] numbers as directional. They drive tips, never blockers.
  *
- * Last reviewed: 2026-09-19
+ * Last reviewed: 2026-09-22
  */
 
-export const LAST_REVIEWED = '2026-09-19';
+export const LAST_REVIEWED = '2026-09-22';
 
-export const PLATFORMS = ['linkedin', 'x', 'instagram', 'tiktok', 'youtube'];
+export const PLATFORMS = ['linkedin', 'x', 'threads', 'instagram', 'tiktok', 'youtube'];
 
 export const PLATFORM_LABELS = {
   linkedin: 'LinkedIn',
   x: 'X',
+  threads: 'Threads',
   instagram: 'Instagram',
   tiktok: 'TikTok',
   youtube: 'YouTube Shorts',
@@ -93,9 +94,10 @@ export const RULES = {
     // [OFFICIAL] No draft for a normal post. (Articles have a draft flag,
     // which is a different thing entirely.)
     draft: { supported: false, reason: 'X has no draft for regular posts over the API.' },
-    // [OFFICIAL] Upload-Post's comment endpoints cover Instagram, Facebook,
-    // YouTube, LinkedIn and TikTok. X is not among them.
-    comments: { supported: false, reason: 'Not covered by the comments API — reply on X itself.' },
+    // [OFFICIAL] Upload-Post's comment endpoints now list X as fully
+    // supported (read, reply and delete), alongside Instagram, Facebook,
+    // YouTube, LinkedIn, TikTok and Bluesky. Checked 2026-09-22.
+    comments: { supported: true, canDelete: true, moderation: [] },
     urlCharCost: 23,
     // [STUDY/SOFT] 71–100 characters remains the most-cited high-engagement
     // band and is still repeated across 2026 analyses. The original is an
@@ -113,6 +115,73 @@ export const RULES = {
     // but only 10 minutes on Android, so we audit to the safer ceiling.
     video: { maxSeconds: 140, maxSecondsPremium: 600, maxSecondsPremiumWeb: 14400 },
     aspect: { preferred: [[16, 9], [1, 1], [9, 16]] },
+  },
+
+  threads: {
+    label: 'Threads',
+    // [OFFICIAL] Meta's Threads API: "Text posts are limited to 500
+    // characters." Anything longer is rejected outright.
+    maxChars: 500,
+    // [OFFICIAL] The same doc says emoji count as their UTF-8 bytes, so a
+    // single emoji can bill as four characters even though it looks like one.
+    // Developer testing suggests the live enforcement is closer to graphemes,
+    // but bytes is the number Meta publishes — and it is the stricter of the
+    // two, so it is the one we audit against. Being wrong in this direction
+    // costs you a few characters; being wrong the other way is a rejection
+    // at send time.
+    countsUtf8Bytes: true,
+    // [SOFT] The feed collapses longer posts under "… more" at roughly 175
+    // characters, shifting with where your line breaks fall.
+    foldChars: 175,
+    // [SOFT] Threads rewards short. No public dataset puts a number on it,
+    // so this drives a tip and nothing stronger.
+    idealMin: 80,
+    idealMax: 300,
+
+    // ── Topic tags, not hashtags ─────────────────────────────────────────
+    // [OFFICIAL] Threads has no hashtags. It has ONE topic tag per post:
+    // @threads, Dec 2023 — "You can only tag one topic per post, so select a
+    // topic that best represents what you're saying." Extra #hashtags are
+    // not rejected, they simply do not link or classify — and Threads hides
+    // Instagram-style hashtag blocks on cross-posts entirely.
+    hashtags: { min: 0, max: 1, hardMax: 1 },
+    // [OFFICIAL] Upload-Post's threads_topic_tag: 1–50 characters, no
+    // periods or ampersands. Spaces are allowed, unlike a hashtag.
+    topicTag: { maxChars: 50, forbidden: ['.', '&'] },
+    // Flag surplus tags rather than blocking: the post still publishes.
+    hashtagsBeyondCapAreIgnored: true,
+    emoji: { max: 4 },
+
+    // [OFFICIAL] Five links per post, enforced from 22 Dec 2025. Links are
+    // clickable here — unlike Instagram and TikTok.
+    links: { max: 5 },
+    // [OFFICIAL] Carousels take 2–20 items, images and video mixed.
+    // Past about 10 people stop swiping, so that is the advised ceiling.
+    carousel: { min: 2, max: 10, hardMax: 20 },
+    // [OFFICIAL] No draft in the API, and none in the Threads app either.
+    draft: { supported: false, reason: 'Threads has no draft — in the API or the app.' },
+    // [OFFICIAL] Upload-Post lists Threads comments as partial: you can read
+    // and reply, but deleting returns platform_not_supported.
+    comments: { supported: true, partial: true, canDelete: false, moderation: [] },
+    video: {
+      // [OFFICIAL] 300 seconds, 1 GB, 23–60 FPS.
+      maxSeconds: 300,
+      maxBytes: 1024 * 1024 * 1024,
+      // [SOFT] Same logic as every other feed: completion drives reach.
+      idealMaxSeconds: 90,
+    },
+    image: {
+      // [OFFICIAL] 8 MB, 320–1440px wide, JPEG or PNG.
+      maxBytes: 8 * 1024 * 1024,
+      minWidth: 320,
+      maxWidth: 1440,
+    },
+    // [OFFICIAL] 0.01:1 to 10:1 accepted, 9:16 recommended — so almost
+    // nothing is rejected, but portrait is what the feed is built for.
+    aspect: { tolerated: [[9, 16], [4, 5], [1, 1], [16, 9]] },
+    // [OFFICIAL] 250 published posts per profile per 24 hours. A carousel
+    // counts as one.
+    rateLimitPerDay: 250,
   },
 
   instagram: {
@@ -288,6 +357,10 @@ export const CORPORATE_SPEAK = [
 export const BEST_TIMES = {
   linkedin: { days: [2, 3, 4], hours: [[11, 17]], note: 'Tue–Thu, 11am–5pm.' },
   x: { days: [1, 2, 3, 4, 5], hours: [[9, 12], [17, 19]], note: 'Weekdays, late morning and early evening.' },
+  // [STUDY] Buffer, 2.5M Threads posts: weekday mornings 6–11am carry the
+  // highest median engagement, peaking Thursday 9am. Evenings and Saturday
+  // are the weakest slots — the opposite shape to Instagram.
+  threads: { days: [2, 3, 4], hours: [[6, 11]], note: 'Weekday mornings 6–11am; Thursday 9am is the peak.' },
   instagram: { days: [1, 2, 3, 4, 6], hours: [[11, 14], [18, 23]], note: 'Wed and Thu are strongest; evenings 6–11pm win most days.' },
   tiktok: { days: [2, 3, 4], hours: [[14, 18], [18, 23]], note: 'Tue–Thu 2–6pm is strongest; evenings 6–11pm also perform.' },
   youtube: { days: [4, 5, 6], hours: [[12, 15], [17, 20]], note: 'Thu–Sat, afternoon into early evening.' },

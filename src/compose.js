@@ -8,7 +8,7 @@
  */
 
 import { RULES } from './rules.js';
-import { len, takeChars, urlsIn, hashtagsIn, xWeightedLength } from './audit.js';
+import { len, takeChars, urlsIn, hashtagsIn, xWeightedLength, threadsWeightedLength } from './audit.js';
 
 const URL_RE = /https?:\/\/[^\s<>"')]+/gi;
 
@@ -105,15 +105,16 @@ function breakAfterHook(body, foldChars) {
 }
 
 /** Splits long text into numbered X posts that each fit in 280. */
-export function splitThread(text, link = '') {
-  const cap = RULES.x.maxChars;
+export function splitThread(text, link = '', platform = 'x') {
+  const cap = RULES[platform].maxChars;
+  const weigh = platform === 'threads' ? threadsWeightedLength : xWeightedLength;
   const sents = sentencesOf(text);
   const parts = [];
   let cur = '';
   for (const s of sents) {
     const candidate = cur ? `${cur} ${s}` : s;
     // Leave room for the " 1/9" counter.
-    if (xWeightedLength(candidate) > cap - 6 && cur) {
+    if (weigh(candidate) > cap - 6 && cur) {
       parts.push(cur);
       cur = s;
     } else {
@@ -123,7 +124,7 @@ export function splitThread(text, link = '') {
   if (cur) parts.push(cur);
   if (link) {
     const last = parts[parts.length - 1] || '';
-    if (xWeightedLength(`${last}\n\n${link}`) <= cap - 6) parts[parts.length - 1] = `${last}\n\n${link}`;
+    if (weigh(`${last}\n\n${link}`) <= cap - 6) parts[parts.length - 1] = `${last}\n\n${link}`;
     else parts.push(link);
   }
   return parts.map((p, i) => (parts.length > 1 ? `${p} ${i + 1}/${parts.length}` : p));
@@ -196,6 +197,63 @@ function composeX(clean, tags, link, mediaKind, opts = {}) {
     options: { x_long_text_as_post: false },
     // Kept so the UI can offer "post the whole thing as a thread" instead.
     _thread: splitThread(stripped, link),
+  };
+}
+
+function composeThreads(clean, tags, link, mediaKind, opts = {}) {
+  const r = RULES.threads;
+  const stripped = stripUrls(clean);
+  const sents = sentencesOf(stripped);
+
+  // Threads has no hashtags, so the tags never go in the caption. The single
+  // best one becomes the topic tag instead, which is the thing that actually
+  // classifies the post — and unlike a hashtag it may contain spaces.
+  const topic = (tags[0] || '').replace(/[.&]/g, '').slice(0, r.topicTag.maxChars);
+
+  // Links are clickable here and carry no known reach penalty, so unlike
+  // LinkedIn there is nothing to weigh up: it stays in the body.
+  const suffix = link ? `\n\n${link}` : '';
+
+  const options = {
+    // false lets Upload-Post split anything over 500 into a thread rather
+    // than rejecting it.
+    threads_long_text_as_post: false,
+    reply_control: 'everyone',
+    ...(topic ? { threads_topic_tag: topic } : {}),
+  };
+
+  // Thread mode keeps the whole argument — splitting it is the entire point.
+  if (opts.threadsThread) {
+    return {
+      body: (stripped + suffix).trim(),
+      headline: '',
+      first_comment: '',
+      hashtags: [],
+      options: { ...options, thread: true },
+      _thread: splitThread(stripped, link, 'threads'),
+    };
+  }
+
+  // Otherwise build up to the ideal length, not the hard limit — Threads
+  // reads fast and a 500-character wall is not what wins here.
+  let body = '';
+  for (const sent of sents) {
+    const next = body ? `${body}\n\n${sent}` : sent;
+    if (threadsWeightedLength(next + suffix) > r.idealMax && body) break;
+    body = next;
+  }
+  if (!body) body = truncateAtWord(sents[0] || stripped, r.idealMax, '…');
+
+  let out = (body + suffix).trim();
+  if (threadsWeightedLength(out) > r.maxChars) out = truncateAtWord(out, r.maxChars, '…');
+
+  return {
+    body: out,
+    headline: '',
+    first_comment: '',
+    hashtags: [],
+    options,
+    _thread: splitThread(stripped, link, 'threads'),
   };
 }
 
@@ -286,6 +344,7 @@ function composeYouTube(clean, tags, link, mediaKind) {
 const COMPOSERS = {
   linkedin: composeLinkedIn,
   x: composeX,
+  threads: composeThreads,
   instagram: composeInstagram,
   tiktok: composeTikTok,
   youtube: composeYouTube,
@@ -350,8 +409,27 @@ export function applyFix(action, variant, ctx = {}) {
     }
 
     case 'split-thread':
-      // Upload-Post threads long text for us when x_long_text_as_post is false.
-      return { options: { ...opts, x_long_text_as_post: false, thread: true } };
+      // Upload-Post threads long text for us when <platform>_long_text_as_post
+      // is false — the flag is named per platform, so pick the right one.
+      return variant.platform === 'threads'
+        ? { options: { ...opts, threads_long_text_as_post: false, thread: true } }
+        : { options: { ...opts, x_long_text_as_post: false, thread: true } };
+
+    case 'tags-to-topic': {
+      // Threads has one topic tag, not hashtags. Promote the first tag and
+      // strip every # from the caption, since they are plain text there.
+      const stored = (() => {
+        try { return JSON.parse(variant.hashtags || '[]'); } catch { return []; }
+      })();
+      const first = (stored[0] || hashtagsIn(body)[0] || '').replace(/^#/, '');
+      if (!first) return {};
+      const topic = first.replace(/[.&]/g, '').slice(0, RULES.threads.topicTag.maxChars);
+      return {
+        body: splitTrailingHashtags(body).body,
+        hashtags: [],
+        options: { ...opts, threads_topic_tag: topic },
+      };
+    }
 
     case 'strip-shorts-tag':
       return { headline: (variant.headline || '').replace(/\s*#shorts\b/gi, '').replace(/\s{2,}/g, ' ').trim() };

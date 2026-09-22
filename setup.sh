@@ -186,7 +186,7 @@ ${G}${B}Setup complete.${N}
 ${B}Still to do, in the Upload-Post dashboard:${N}
   1. User Management → create a profile named exactly what you entered
      for UPLOADPOST_USER above.
-  2. Connect LinkedIn, X, Instagram, TikTok and YouTube — press Connect on
+  2. Connect LinkedIn, X, Threads, Instagram, TikTok and YouTube — press Connect on
      each, approve the permissions.
      Instagram must be a Business or Creator account, verified, with every
      permission approved. The other four need no preparation.

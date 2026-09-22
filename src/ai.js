@@ -77,6 +77,21 @@ function platformBrief(platform, settings = {}) {
 - At most ${r.hashtags.max} hashtags; zero is usually better on X.
 - This is not a summary of the LinkedIn post. It is the single sharpest idea, standing alone.`;
     }
+    case 'threads':
+      return `Target: Threads.
+- Hard limit ${r.maxChars} characters, and Threads counts emoji as several characters each. Aim for ${r.idealMin}-${r.idealMax} — Threads reads fast and rewards short.
+- Only about ${r.foldChars} characters show before "… more", so the hook has to land in the first line.
+- Threads has NO hashtags. Do not put any # in the caption; they are plain text there and classify nothing. Instead return a single "topic" of 1-50 words-or-characters that best describes the post (no periods, no ampersands). Spaces are allowed in it.
+- Links ARE clickable here and carry no reach penalty, so a URL in the body is fine.
+- Conversational and opinionated. Threads is a talking feed, not a broadcast one — writing that invites a reply outperforms writing that closes the subject.
+- This is not the X post reworded. X rewards the sharpest compression; Threads rewards the more human, more open version of the same thought.`;
+    case 'tiktok':
+      return `Target: TikTok caption.
+- Hard limit ${r.maxChars} characters through the API, but aim for ${r.idealMin}-${r.idealMax}. The caption supports the video, it does not repeat it.
+- Only about ${r.foldChars} characters show before "more".
+- ${r.hashtags.min}-${r.hashtags.max} hashtags. Since Aug 2025 only the first ${r.hashtags.max} count for distribution, so more is wasted.
+- URLs are NOT clickable here. Never include one.
+- Casual and direct. No corporate framing.`;
     case 'instagram':
       return `Target: Instagram Reels caption.
 - Limit ${r.maxChars} characters; only the first ${r.foldChars} show before "…more".
@@ -246,7 +261,7 @@ Rules:
 - End where the thought ends. No "what do you think?" tacked on.
 - 3–5 hashtags at the very end, lowercase, specific rather than broad.
 
-Also judge which platforms this actually suits. A nuanced argument is LinkedIn. A single sharp line is X. Something that needs a visual is Instagram or TikTok. Don't pick all of them out of habit — pick where it genuinely lands.
+Also judge which platforms this actually suits. A nuanced argument is LinkedIn. A single sharp line is X. An opinion that invites an argument back is Threads. Something that needs a visual is Instagram or TikTok. Don't pick all of them out of habit — pick where it genuinely lands.
 
 Respond with JSON only, no prose, no code fence:
 {"name": "short internal label, 3-6 words", "caption": "the post", "platforms": ["linkedin"], "why": "one sentence on the platform choice"}`;
@@ -269,7 +284,7 @@ Respond with JSON only, no prose, no code fence:
   try { parsed = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, '')); }
   catch { parsed = { caption: text }; }
 
-  const valid = new Set(['linkedin', 'x', 'instagram', 'tiktok', 'youtube']);
+  const valid = new Set(['linkedin', 'x', 'threads', 'instagram', 'tiktok', 'youtube']);
   return {
     name: String(parsed.name || '').trim(),
     caption: String(parsed.caption || '').trim(),

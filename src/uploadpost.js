@@ -1,7 +1,7 @@
 /**
  * UPLOAD-POST CLIENT
  * ==================
- * One API key, one call, five platforms. Upload-Post holds the schedule on
+ * One API key, one call, six platforms. Upload-Post holds the schedule on
  * their own servers, so a post fires at its scheduled time whether or not this
  * Worker (or your laptop) is awake.
  *
@@ -60,8 +60,8 @@ export async function connectUrl(env, { username, redirectUrl, platforms }) {
   form.set('username', username);
   if (redirectUrl) form.set('redirect_url', redirectUrl);
   form.set('connect_title', 'Connect your accounts to Social Studio');
-  form.set('connect_description', 'Link LinkedIn, X, Instagram and YouTube once. Social Studio posts to them on your schedule.');
-  for (const p of platforms || ['linkedin', 'x', 'instagram', 'youtube']) form.append('platforms', p);
+  form.set('connect_description', 'Link LinkedIn, X, Threads, Instagram, TikTok and YouTube once. Social Studio posts to them on your schedule.');
+  for (const p of platforms || ['linkedin', 'x', 'threads', 'instagram', 'tiktok', 'youtube']) form.append('platforms', p);
   return call(env, '/uploadposts/users/generate-jwt', { method: 'POST', form });
 }
 
@@ -113,6 +113,21 @@ function applyVariant(form, variant, mediaKind, draft = false) {
       form.set('x_long_text_as_post', String(opts.x_long_text_as_post ?? false));
       if (opts.reply_settings) form.set('reply_settings', opts.reply_settings);
       if (variant.first_comment) form.set('x_first_comment', variant.first_comment);
+      break;
+
+    case 'threads':
+      form.set('threads_title', body);
+      // false => Upload-Post splits anything over 500 characters into a
+      // thread rather than letting Threads reject it.
+      form.set('threads_long_text_as_post', String(opts.threads_long_text_as_post ?? false));
+      // Threads has no hashtags — one topic tag, 1–50 chars, no "." or "&".
+      if (opts.threads_topic_tag) {
+        form.set('threads_topic_tag', String(opts.threads_topic_tag).replace(/[.&]/g, '').slice(0, 50));
+      }
+      if (opts.reply_control) form.set('threads_reply_control', opts.reply_control);
+      if (opts.threads_link_attachment) form.set('threads_link_attachment', opts.threads_link_attachment);
+      if (opts.threads_quote_post_id) form.set('threads_quote_post_id', opts.threads_quote_post_id);
+      for (const o of opts.threads_poll_options || []) form.append('threads_poll_options', o);
       break;
 
     case 'instagram':
