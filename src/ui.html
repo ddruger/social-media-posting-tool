@@ -187,6 +187,13 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
 .emoji-grid button{border:0;background:transparent;font-size:19px;line-height:1;padding:5px 0;border-radius:6px;cursor:pointer}
 .emoji-grid button:hover{background:var(--soft)}
 .emoji-none{grid-column:1/-1;color:var(--muted);font-size:13px;padding:14px;text-align:center}
+
+/* per-platform media */
+.pmedia{border:1px solid var(--line);border-radius:9px;padding:10px;background:var(--soft)}
+.pmedia-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pmedia-thumb{width:44px;border-radius:6px;border:1px solid var(--line);background:#000;flex:none}
+.pmedia-own{background:color-mix(in srgb,var(--accent) 7%,transparent);border-color:var(--accent)}
+.pmedia-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .switch{position:relative;width:36px;height:20px;flex:none}
@@ -557,6 +564,8 @@ function renderPlatforms() {
         </div>
         <div data-preview class="hide"></div>
         <div data-edit>
+        <div class="fld" data-media-slot></div>
+        <input type="file" data-media-input class="hide" accept="video/*,image/*" multiple>
         ${p === 'youtube' ? `<label class="fld"><span>Title${parse(v.options).youtube_format === 'video' ? '' : ' — only ~40 characters show in the feed'}</span>
           <input type="text" data-f="headline" value="${esc(v.headline)}" maxlength="120"></label>` : ''}
         <label class="fld"><span>${p === 'youtube' ? 'Description' : 'Caption'}
@@ -606,6 +615,7 @@ function renderPlatforms() {
       if (whenMode() === 'draft') setWhenMode('draft');
       liveAudit();
     };
+    renderPlatformMedia(card, p, v);
     attachEmoji(card.querySelector('[data-emoji-body]'), card.querySelector('[data-f=body]'));
 
     card.querySelector('[data-act=suggest-tags]').onclick = async (e) => {
@@ -962,10 +972,148 @@ function showView(card, view) {
   }
 }
 
+/* ---------------- per-platform media ---------------- */
+/** A platform's own media list, or an empty list meaning "use the shared one". */
+function variantMediaList(v) {
+  try {
+    const parsed = typeof v.media_items === 'string' ? JSON.parse(v.media_items || '[]') : (v.media_items || []);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function mediaLine(item, i, n) {
+  const m = item.meta || {};
+  const dur = m.durationSec ? `${m.durationSec.toFixed(0)}s · ` : '';
+  const dim = m.width ? `${m.width}×${m.height}` : '';
+  const thumb = item.kind === 'video'
+    ? `<video src="/m/${esc(item.key)}" muted playsinline preload="metadata" class="pmedia-thumb"></video>`
+    : `<img src="/m/${esc(item.key)}" alt="" class="pmedia-thumb">`;
+  return `<div class="pmedia-row">
+    ${n > 1 ? `<span class="muted" style="font-family:var(--font-mono);font-size:11.5px;width:14px">${i + 1}</span>` : ''}
+    ${thumb}
+    <div style="min-width:0"><div style="font-size:12.5px;font-weight:600">${esc(m.name || item.kind)}</div>
+    <div class="muted" style="font-size:11.5px">${esc(dur + dim)}</div></div>
+    <span style="margin-left:auto;display:flex;gap:4px">
+      ${n > 1 ? `<button class="btn-sm" data-pmv="${i}:-1" ${i === 0 ? 'disabled' : ''}>↑</button>
+                 <button class="btn-sm" data-pmv="${i}:1" ${i === n - 1 ? 'disabled' : ''}>↓</button>` : ''}
+      <button class="btn-sm" data-prm="${i}" style="color:var(--bad)">Remove</button>
+    </span>
+  </div>`;
+}
+
+function renderPlatformMedia(card, p, v) {
+  const slot = card.querySelector('[data-media-slot]');
+  const own = variantMediaList(v);
+  const shared = mediaList();
+
+  if (own.length) {
+    slot.innerHTML = `<div class="pmedia pmedia-own">
+      <div class="pmedia-row" style="margin-bottom:6px">
+        <strong style="font-size:12.5px">Its own media${own.length > 1 ? ` — ${own.length} slides` : ''}</strong>
+        <span style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn-sm" data-padd>Add more</button>
+          <button class="btn-sm" data-preset>Use the shared media</button>
+        </span>
+      </div>
+      <div class="pmedia-list">${own.map((it, i) => mediaLine(it, i, own.length)).join('')}</div>
+    </div>`;
+  } else if (shared.length) {
+    slot.innerHTML = `<div class="pmedia">
+      <div class="pmedia-row">
+        ${shared.length > 1 ? `<span class="muted" style="font-size:12.5px">Shared — ${shared.length} slides</span>` : mediaLine(shared[0], 0, 1).replace(/<span style="margin-left:auto[\s\S]*?<\/span>/, '')}
+        <span style="margin-left:auto;display:flex;gap:6px">
+          <span class="muted" style="font-size:12px;align-self:center">using the shared media</span>
+          <button class="btn-sm" data-padd>Use different media here</button>
+        </span>
+      </div>
+    </div>`;
+  } else {
+    slot.innerHTML = `<div class="pmedia"><div class="pmedia-row">
+      <span class="muted" style="font-size:12.5px">No media on the post.</span>
+      <button class="btn-sm" data-padd style="margin-left:auto">Add media just for ${esc(S.rules[p]?.label || p)}</button>
+    </div></div>`;
+  }
+
+  const input = card.querySelector('[data-media-input]');
+  slot.querySelector('[data-padd]')?.addEventListener('click', (e) => { e.preventDefault(); input.click(); });
+
+  slot.querySelector('[data-preset]')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    // The files stay in storage; only this platform's override is cleared.
+    v.media_items = '[]';
+    S.dirty = true;
+    await save({ silent: true });
+    renderPlatforms();
+    await runAudit();
+    toast(`${S.rules[p]?.label || p} is back on the shared media.`);
+  });
+
+  slot.querySelectorAll('[data-prm]').forEach((b) => {
+    b.onclick = async (e) => {
+      e.preventDefault();
+      const next = variantMediaList(v).filter((_, i) => i !== Number(b.dataset.prm));
+      v.media_items = JSON.stringify(next);
+      S.dirty = true;
+      await save({ silent: true });
+      renderPlatforms();
+      await runAudit();
+    };
+  });
+
+  slot.querySelectorAll('[data-pmv]').forEach((b) => {
+    b.onclick = async (e) => {
+      e.preventDefault();
+      const [idx, dir] = b.dataset.pmv.split(':').map(Number);
+      const next = variantMediaList(v);
+      const to = idx + dir;
+      if (to < 0 || to >= next.length) return;
+      [next[idx], next[to]] = [next[to], next[idx]];
+      v.media_items = JSON.stringify(next);
+      S.dirty = true;
+      await save({ silent: true });
+      renderPlatforms();
+      await runAudit();
+    };
+  });
+
+  input.onchange = async (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (!files.length) return;
+    const slotEl = card.querySelector('[data-media-slot]');
+    const before = slotEl.innerHTML;
+    slotEl.innerHTML = '<div class="pmedia"><span class="spin"></span> uploading…</div>';
+    const next = variantMediaList(v);
+    for (const file of files) {
+      if (file.size > 95 * 1024 * 1024) { toast(`${file.name} is over 95 MB.`, true, 7000); continue; }
+      try {
+        const meta = await readMeta(file);
+        const res = await fetch('/api/media', {
+          method: 'POST',
+          headers: { 'content-type': file.type || 'application/octet-stream', 'x-filename': file.name },
+          body: file,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed.');
+        next.push({ key: data.key, kind: file.type.startsWith('video/') ? 'video' : 'image', meta });
+      } catch (err) {
+        toast(`${file.name}: ${err.message}`, true, 7000);
+      }
+    }
+    if (!next.length) { slotEl.innerHTML = before; return; }
+    v.media_items = JSON.stringify(next);
+    S.dirty = true;
+    await save({ silent: true });
+    renderPlatforms();
+    await runAudit();
+    toast(`${S.rules[p]?.label || p} now uses its own media.`);
+  };
+}
+
 /* ---------------- audit ---------------- */
 function auditPayload() {
   return {
-    variants: S.variants.map((v) => ({ ...v, enabled: !!v.enabled })),
+    variants: S.variants.map((v) => ({ ...v, enabled: !!v.enabled, media_items: variantMediaList(v) })),
     media_kind: S.current?.media_kind || 'none',
     media_meta: parse(S.current?.media_meta),
     has_media: Boolean(S.current?.media_key) || mediaList().length > 0,
@@ -1243,6 +1391,9 @@ async function saveMediaList(items) {
   await api(`/posts/${S.current.id}`, { method: 'PATCH', body: { post: patch } });
   Object.assign(S.current, patch);
   renderMedia();
+  // Each platform card shows what it will publish, so they follow the shared
+  // media changing — otherwise they keep claiming there is none.
+  renderPlatforms();
   runAudit();
 }
 
@@ -1417,7 +1568,7 @@ async function save({ silent = false } = {}) {
       draft_mode: whenMode() !== 'draft' && $('#fPlatformDraft').checked ? 1 : 0,
       timezone: $('#fTz').value || S.defaultTimezone,
     },
-    variants: S.variants.map((v) => ({ ...v, enabled: !!v.enabled })),
+    variants: S.variants.map((v) => ({ ...v, enabled: !!v.enabled, media_items: variantMediaList(v) })),
   };
   const d = await api(`/posts/${S.current.id}`, { method: 'PATCH', body: payload });
   S.current = d.post; S.variants = d.variants; S.dirty = false;

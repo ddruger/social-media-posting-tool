@@ -14,6 +14,7 @@ import SCHEMA from '../migrations/0001_initial.sql';
 import MIGRATION_0002 from '../migrations/0002_carousel.sql';
 import MIGRATION_0003 from '../migrations/0003_draft_mode.sql';
 import MIGRATION_0004 from '../migrations/0004_idea_chat.sql';
+import MIGRATION_0005 from '../migrations/0005_variant_media.sql';
 import { PLATFORMS, RULES, LAST_REVIEWED, BEST_TIMES } from './rules.js';
 import { auditPost, auditVariant } from './audit.js';
 import { compose, applyFix } from './compose.js';
@@ -60,7 +61,7 @@ async function ensureSchema(env) {
 
   // Later migrations are ALTER TABLE, which has no IF NOT EXISTS in SQLite.
   // Run them one at a time and ignore the "already there" failure.
-  for (const line of [...sqlStatements(MIGRATION_0002), ...sqlStatements(MIGRATION_0003), ...sqlStatements(MIGRATION_0004)]) {
+  for (const line of [...sqlStatements(MIGRATION_0002), ...sqlStatements(MIGRATION_0003), ...sqlStatements(MIGRATION_0004), ...sqlStatements(MIGRATION_0005)]) {
     try {
       await env.DB.prepare(line).run();
     } catch (err) {
@@ -92,18 +93,25 @@ function baseUrl(env, request) {
 /* Scheduling                                                                 */
 /* -------------------------------------------------------------------------- */
 
-/** Platforms that share a send time go out in one API call. */
-function groupBySendTime(variants, scheduledAt) {
-  const base = scheduledAt ? new Date(scheduledAt).getTime() : null;
+/**
+ * Platforms go out in one API call when they share BOTH a send time and the
+ * same media. A platform carrying its own images cannot ride along with one
+ * carrying the shared video, since the call takes a single media payload.
+ */
+function groupForSending(post, variants, mediaFor) {
+  const base = post.scheduled_at ? new Date(post.scheduled_at).getTime() : null;
   const groups = new Map();
   for (const v of variants) {
     if (!v.enabled) continue;
     const offset = v.offset_min || 0;
-    const key = base === null ? 'now' : new Date(base + offset * 60000).toISOString();
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(v);
+    const sendAt = base === null ? 'now' : new Date(base + offset * 60000).toISOString();
+    const { items } = mediaFor(v);
+    const mediaKey = items.map((i) => i.key).join(',');
+    const key = `${sendAt}||${mediaKey}`;
+    if (!groups.has(key)) groups.set(key, { sendAt, items, variants: [] });
+    groups.get(key).variants.push(v);
   }
-  return groups;
+  return [...groups.values()];
 }
 
 async function schedulePost(env, request, postId, { force = false } = {}) {
@@ -134,7 +142,8 @@ async function schedulePost(env, request, postId, { force = false } = {}) {
 
   const settings = await db.allSettings(env.DB);
   const items = db.mediaItems(post);
-  const result = auditPost(post, variants, settings, items);
+  const mediaFor = (v) => db.variantMedia(post, v);
+  const result = auditPost(post, variants, settings, items, mediaFor);
   for (const [platform, report] of Object.entries(result.reports)) {
     await db.saveAudit(env.DB, postId, platform, report);
   }
@@ -152,18 +161,19 @@ async function schedulePost(env, request, postId, { force = false } = {}) {
   }
 
   const base = baseUrl(env, request);
-  const mediaUrls = items.map((i) => `${base}/m/${i.key}`);
-  const groups = groupBySendTime(enabled, post.scheduled_at);
+  const groups = groupForSending(post, enabled, mediaFor);
   const created = [];
   const failures = [];
 
-  for (const [sendAt, group] of groups) {
+  for (const { sendAt, items: groupItems, variants: group } of groups) {
     const platforms = group.map((v) => v.platform);
+    const mediaUrls = groupItems.map((i) => `${base}/m/${i.key}`);
+    const mediaKind = db.mediaKindOf(groupItems);
     try {
       const res = await up.publish(env, {
         platforms,
         variants: group,
-        mediaKind: post.media_kind,
+        mediaKind,
         mediaUrls,
         sendAt: sendAt === 'now' ? null : sendAt,
         linkUrl: post.link_url,
@@ -260,9 +270,20 @@ async function reconcile(env) {
 async function purgeMedia(env, postId, settings) {
   if (settings?.keepMediaAfterPublish) return;
   const post = await db.getPost(env.DB, postId);
+  const variants = await db.getVariants(env.DB, postId);
   const items = db.mediaItems(post);
-  if (!items.length) return;
-  for (const item of items) await env.MEDIA.delete(item.key).catch(() => {});
+  const ownItems = variants.flatMap((v) => {
+    try { return JSON.parse(v.media_items || '[]'); } catch { return []; }
+  });
+  if (!items.length && !ownItems.length) return;
+  for (const item of [...items, ...ownItems]) {
+    if (item.key) await env.MEDIA.delete(item.key).catch(() => {});
+  }
+  for (const v of variants) {
+    if ((() => { try { return JSON.parse(v.media_items || '[]').length; } catch { return 0; } })()) {
+      await db.upsertVariant(env.DB, postId, v.platform, { ...v, enabled: v.enabled, media_items: [] });
+    }
+  }
   let meta = {};
   try { meta = JSON.parse(post.media_meta || '{}'); } catch { /* keep going */ }
   await db.updatePost(env.DB, postId, {
@@ -371,9 +392,12 @@ async function handleApi(request, env, url) {
     const reports = {};
     for (const v of variants) {
       reports[v.platform] = auditVariant(v, {
-        media: body.media_meta || {}, mediaKind: body.media_kind || 'none',
-        hasMedia: body.has_media !== false,
-        items: body.items || [],
+        media: v.media_items?.length ? (v.media_items[0]?.meta || {}) : (body.media_meta || {}),
+        hasMedia: v.media_items?.length ? true : body.has_media !== false,
+        items: v.media_items?.length ? v.media_items : (body.items || []),
+        mediaKind: v.media_items?.length
+          ? (v.media_items.length === 1 ? (v.media_items[0].kind || 'image') : 'image')
+          : (body.media_kind || 'none'),
         siblings: variants, scheduledAt: body.scheduled_at, timezone: body.timezone,
         settings: { ...settings, ...(body.settings || {}) },
       });
@@ -485,7 +509,11 @@ async function handleApi(request, env, url) {
         env.DB.prepare('DELETE FROM jobs     WHERE post_id = ?').bind(id),
         env.DB.prepare('DELETE FROM posts    WHERE id = ?').bind(id),
       ]);
-      for (const item of db.mediaItems(post)) {
+      const allItems = [...db.mediaItems(post)];
+      for (const v of await db.getVariants(env.DB, id)) {
+        try { allItems.push(...JSON.parse(v.media_items || '[]')); } catch { /* ignore */ }
+      }
+      for (const item of allItems) {
         if (item.key) await env.MEDIA.delete(item.key).catch(() => {});
       }
       return json({ ok: true });
@@ -504,7 +532,7 @@ async function handleApi(request, env, url) {
     if (action === 'audit' && method === 'POST') {
       const variants = await db.getVariants(env.DB, id);
       const settings = await db.allSettings(env.DB);
-      const result = auditPost(post, variants, settings, db.mediaItems(post));
+      const result = auditPost(post, variants, settings, db.mediaItems(post), (v) => db.variantMedia(post, v));
       for (const [platform, report] of Object.entries(result.reports)) {
         await db.saveAudit(env.DB, id, platform, report);
       }

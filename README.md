@@ -293,6 +293,23 @@ automatically every 10 minutes.
 
 To pull something back, open it and hit **Cancel scheduled posts**.
 
+### Media per platform
+
+Whatever you drop at the top is the shared media — every platform uses it by
+default, which is the common case and needs no thought.
+
+Each platform card also shows what *it* will publish, with **Use different
+media here**. Give LinkedIn a three-slide carousel while everything else keeps
+the video; give Instagram a vertical cut and YouTube the landscape one.
+**Use the shared media** puts a platform back on the default.
+
+The audit follows: a platform carrying its own images is judged as a carousel
+while the others are judged as video, in the same pass.
+
+One consequence worth knowing: platforms with different media **cannot share
+an API call**, so they publish as separate calls. On the free Upload-Post plan
+that counts as separate uploads.
+
 ### Carousels and multi-image posts
 
 Drop in several images and the post becomes a carousel. Reorder or remove

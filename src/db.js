@@ -89,18 +89,40 @@ export async function updatePost(db, id, patch) {
 
 export async function upsertVariant(db, postId, platform, v) {
   await db.prepare(
-    `INSERT INTO variants (post_id, platform, enabled, body, headline, first_comment, hashtags, options, offset_min)
-     VALUES (?,?,?,?,?,?,?,?,?)
+    `INSERT INTO variants (post_id, platform, enabled, body, headline, first_comment, hashtags, options, offset_min, media_items)
+     VALUES (?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(post_id, platform) DO UPDATE SET
        enabled=excluded.enabled, body=excluded.body, headline=excluded.headline,
        first_comment=excluded.first_comment, hashtags=excluded.hashtags,
-       options=excluded.options, offset_min=excluded.offset_min`,
+       options=excluded.options, offset_min=excluded.offset_min,
+       media_items=excluded.media_items`,
   ).bind(
     postId, platform, v.enabled ? 1 : 0, v.body || '', v.headline || '', v.first_comment || '',
     typeof v.hashtags === 'string' ? v.hashtags : JSON.stringify(v.hashtags || []),
     typeof v.options === 'string' ? v.options : JSON.stringify(v.options || {}),
     v.offset_min || 0,
+    typeof v.media_items === 'string' ? v.media_items : JSON.stringify(v.media_items || []),
   ).run();
+}
+
+/**
+ * The media a given platform will actually publish.
+ *
+ * A variant with its own list overrides the post's; an empty list inherits.
+ * Inheriting is the default so the common case — one video everywhere — needs
+ * no per-platform fiddling at all.
+ */
+export function variantMedia(post, variant) {
+  let own = [];
+  try { own = JSON.parse(variant?.media_items || '[]'); } catch { own = []; }
+  return own.length ? { items: own, own: true } : { items: mediaItems(post), own: false };
+}
+
+/** What kind of post this media makes: a lone video, images, or neither. */
+export function mediaKindOf(items) {
+  if (!items.length) return 'none';
+  if (items.length === 1) return items[0].kind || 'image';
+  return 'image';
 }
 
 export async function saveAudit(db, postId, platform, report) {

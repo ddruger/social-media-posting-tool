@@ -716,18 +716,26 @@ export function auditVariant(variant, ctx = {}) {
   };
 }
 
-export function auditPost(post, variants, settings = {}, items = []) {
-  const media = items[0]?.meta || JSON.parse(post.media_meta || '{}');
+/**
+ * @param {Function} mediaFor  (variant) => {items, own} — a platform may carry
+ *   its own media rather than the post's, so each is audited against what it
+ *   will actually publish.
+ */
+export function auditPost(post, variants, settings = {}, items = [], mediaFor = null) {
+  const postMeta = JSON.parse(post.media_meta || '{}');
   const enabled = variants.filter((v) => v.enabled);
   const reports = {};
   for (const v of enabled) {
+    const chosen = mediaFor ? mediaFor(v) : { items, own: false };
+    const list = chosen.items || [];
+    const kind = !list.length ? 'none' : (list.length === 1 ? (list[0].kind || 'image') : 'image');
     reports[v.platform] = auditVariant(v, {
-      media,
-      mediaKind: post.media_kind,
+      media: list[0]?.meta || postMeta,
+      mediaKind: chosen.own ? kind : (post.media_kind || kind),
       siblings: enabled,
       // A purged post did have its file; it was deleted after publishing.
-      hasMedia: Boolean(post.media_key) || items.length > 0 || media.purged === true,
-      items,
+      hasMedia: list.length > 0 || Boolean(post.media_key) || postMeta.purged === true,
+      items: list,
       scheduledAt: post.scheduled_at,
       timezone: post.timezone,
       settings,
