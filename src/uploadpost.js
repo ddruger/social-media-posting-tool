@@ -177,7 +177,12 @@ function applyVariant(form, variant, mediaKind, draft = false) {
 export async function publish(env, args) {
   const { platforms, variants, mediaKind, mediaUrls = [], sendAt, linkUrl, timezone } = args;
   const user = env.UPLOADPOST_USER;
-  if (!user) throw new UploadPostError('UPLOADPOST_USER is not set.', 500);
+  if (!user) {
+    throw new UploadPostError(
+      'No Upload-Post profile name is set. Open Settings and enter the profile name '
+      + 'exactly as it appears in Upload-Post under User Management.', 400,
+    );
+  }
   if (!platforms?.length) throw new UploadPostError('No platforms selected.', 400);
 
   const form = new FormData();

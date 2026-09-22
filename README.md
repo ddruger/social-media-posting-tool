@@ -154,8 +154,8 @@ On the setup page it asks for three things:
 
 - **`APP_PASSWORD`** — make one up. This is what you'll type to sign in.
 - **`UPLOADPOST_API_KEY`** — from the table above.
-- **`UPLOADPOST_USER`** — a profile name, e.g. `daniel`. Lowercase, no spaces.
-  Write it down; it has to match a profile you create in the next step.
+- **`UPLOADPOST_USER`** — optional. You can set the profile name in the app's
+  Settings instead, which is safer: a deploy can't wipe it there.
 
 If it also asks for `PUBLIC_BASE_URL` or `DEFAULT_TIMEZONE`, leave them as they
 are. Neither needs a value, and `PUBLIC_BASE_URL` can't be known until after
@@ -249,7 +249,12 @@ will get stuck mid-flow.
 | **TikTok** | Nothing. Posts go out public by default. |
 | **YouTube** | Nothing. It will ask for permission to upload videos — that's expected. Note custom thumbnails aren't supported on Shorts (YouTube's limitation), so the tool doesn't offer one. |
 
-#### Connections expire — this is the thing that will bite you later
+#> **Set your profile name in Social Studio → Settings.** It lives there rather
+> than in Cloudflare because it isn't secret, so it gets added as a plaintext
+> Variable — and a deploy replaces dashboard variables with whatever
+> `wrangler.toml` declares, silently wiping it.
+
+### Connections expire — this is the thing that will bite you later
 
 Tokens do not last forever, and an expired one means a scheduled post quietly
 fails to go out:

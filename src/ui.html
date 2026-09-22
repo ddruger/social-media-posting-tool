@@ -269,6 +269,12 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
             <span class="muted">— off by default, so published videos are deleted from storage and you stay inside Cloudflare's free 10&nbsp;GB</span>
           </span>
         </label>
+        <label class="fld"><span>Upload-Post profile name</span>
+          <input type="text" id="setProfile" placeholder="daniel">
+          <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400;font-size:12.5px;display:block;margin-top:4px">
+            Must match the profile in Upload-Post under <strong>User Management</strong>, exactly.
+            Stored here rather than in Cloudflare, so a deploy can't wipe it.
+          </span></label>
         <label class="fld"><span>Default timezone</span><input type="text" id="setTz" placeholder="America/Los_Angeles"></label>
         <div class="row">
           <label class="fld"><span>Your name (shown in previews)</span><input type="text" id="setName" placeholder="Daniel Druger"></label>
@@ -443,10 +449,21 @@ async function boot() {
     S = { ...S, ...st };
     $('#gate').classList.add('hide');
     $('#app').classList.remove('hide');
-    $('#profileTag').textContent = st.profile ? `profile: ${st.profile}` : 'no Upload-Post profile set';
+    if (st.profile) {
+    $('#profileTag').textContent = `profile: ${st.profile}`;
+    $('#profileTag').style.color = '';
+    $('#profileTag').onclick = null;
+  } else {
+    // Nothing can publish without this, so it should not be a quiet label.
+    $('#profileTag').innerHTML = '⚠ no Upload-Post profile set — <u>fix in Settings</u>';
+    $('#profileTag').style.color = 'var(--bad)';
+    $('#profileTag').style.cursor = 'pointer';
+    $('#profileTag').onclick = () => { $('#settingsPane').classList.remove('hide'); $('#setProfile').focus(); };
+  }
     $('#rulesNote').textContent = `Best-practice rules last reviewed ${st.rulesReviewed}. They live in src/rules.js — edit the numbers there when a platform changes.`;
     $('#setXPremium').checked = !!st.settings.xPremium;
     $('#setKeepMedia').checked = !!st.settings.keepMediaAfterPublish;
+    $('#setProfile').value = st.settings.uploadPostUser || st.profile || '';
     $('#setName').value = st.settings.displayName || '';
     $('#setHandle').value = st.settings.handle || '';
     const on = new Set(st.settings.defaultPlatforms || st.defaultPlatforms || []);
@@ -1857,12 +1874,19 @@ $('#saveSettings').onclick = async () => {
     xPremium: $('#setXPremium').checked,
     keepMediaAfterPublish: $('#setKeepMedia').checked,
     timezone: $('#setTz').value,
+    uploadPostUser: $('#setProfile').value.trim(),
     displayName: $('#setName').value,
     handle: $('#setHandle').value,
     defaultPlatforms,
   };
   await api('/settings', { method: 'POST', body: patch });
   Object.assign(S.settings, patch);
+  if (patch.uploadPostUser) {
+    S.profile = patch.uploadPostUser;
+    $('#profileTag').textContent = `profile: ${patch.uploadPostUser}`;
+    $('#profileTag').style.color = '';
+    $('#profileTag').onclick = null;
+  }
   toast('Settings saved.');
   runAudit();
 };

@@ -75,6 +75,25 @@ async function ensureSchema(env) {
 // did not run at deploy time, and the fix for both is to apply the schema.
 const isMissingTable = (err) => /no such table|no such column|has no column named/i.test(err?.message || '');
 
+/**
+ * The Upload-Post profile name, preferring what is set in Settings.
+ *
+ * It used to come only from the UPLOADPOST_USER binding, which is a trap:
+ * it is not secret, so it gets added as a plaintext Variable in the
+ * dashboard — and a deploy replaces dashboard vars with whatever
+ * wrangler.toml declares, silently wiping it. Posting then fails with
+ * "not set" on a setup that worked yesterday. Keeping it in the database
+ * means it survives deploys and can be fixed in the app.
+ */
+async function profileEnv(env) {
+  const settings = await db.allSettings(env.DB).catch(() => ({}));
+  const user = (settings.uploadPostUser || env.UPLOADPOST_USER || '').trim();
+  return { ...env, UPLOADPOST_USER: user };
+}
+
+const PROFILE_HELP = 'No Upload-Post profile name is set. Open Settings and enter the profile '
+  + 'name exactly as it appears in Upload-Post under User Management.';
+
 function baseUrl(env, request) {
   const origin = new URL(request.url).origin;
   const configured = (env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
@@ -141,6 +160,8 @@ async function schedulePost(env, request, postId, { force = false } = {}) {
   }
 
   const settings = await db.allSettings(env.DB);
+  const penv = await profileEnv(env);
+  if (!penv.UPLOADPOST_USER) return bad(PROFILE_HELP, 400);
   const items = db.mediaItems(post);
   const mediaFor = (v) => db.variantMedia(post, v);
   const result = auditPost(post, variants, settings, items, mediaFor);
@@ -170,7 +191,7 @@ async function schedulePost(env, request, postId, { force = false } = {}) {
     const mediaUrls = groupItems.map((i) => `${base}/m/${i.key}`);
     const mediaKind = db.mediaKindOf(groupItems);
     try {
-      const res = await up.publish(env, {
+      const res = await up.publish(penv, {
         platforms,
         variants: group,
         mediaKind,
@@ -348,7 +369,7 @@ async function handleApi(request, env, url) {
       defaultTimezone: env.DEFAULT_TIMEZONE || 'America/Los_Angeles',
       defaultPlatforms: settings.defaultPlatforms || db.DEFAULT_ENABLED_PLATFORMS,
       hasAi: Boolean(aiKey(env)),
-      profile: env.UPLOADPOST_USER || null,
+      profile: (settings.uploadPostUser || env.UPLOADPOST_USER || '') || null,
     });
   }
 
@@ -356,7 +377,7 @@ async function handleApi(request, env, url) {
     try {
       const [me, profiles] = await Promise.all([
         up.getAccount(env).catch((e) => ({ error: e.message })),
-        up.listProfiles(env).catch((e) => ({ error: e.message })),
+        up.listProfiles(await profileEnv(env)).catch((e) => ({ error: e.message })),
       ]);
       return json({ me, profiles });
     } catch (err) {
@@ -365,11 +386,12 @@ async function handleApi(request, env, url) {
   }
 
   if (path === '/connect' && method === 'POST') {
-    const username = env.UPLOADPOST_USER;
-    if (!username) return bad('UPLOADPOST_USER is not set. See the README.');
+    const username = (await profileEnv(env)).UPLOADPOST_USER;
+    if (!username) return bad(PROFILE_HELP, 400);
     try {
-      await up.ensureProfile(env, username);
-      const res = await up.connectUrl(env, { username, redirectUrl: baseUrl(env, request) });
+      const penv = await profileEnv(env);
+      await up.ensureProfile(penv, username);
+      const res = await up.connectUrl(penv, { username, redirectUrl: baseUrl(env, request) });
       return json({ url: res.access_url || res.url || res.jwt_url || null, raw: res });
     } catch (err) {
       return bad(err.message, 502);
@@ -593,11 +615,13 @@ async function handleApi(request, env, url) {
     const postId = url.searchParams.get('post_id');
     if (!postId) return bad('Which post?');
     const targets = (await publishedTargets(env, postId)).filter((t) => t.supported);
+    const penv = await profileEnv(env);
+    if (!penv.UPLOADPOST_USER) return bad(PROFILE_HELP, 400);
     const threads = [];
     const errors = [];
     for (const t of targets) {
       try {
-        const r = await up.listComments(env, { platform: t.platform, postId: t.postId, postUrl: t.postId ? null : t.postUrl });
+        const r = await up.listComments(penv, { platform: t.platform, postId: t.postId, postUrl: t.postId ? null : t.postUrl });
         threads.push({ platform: t.platform, postId: t.postId, postUrl: t.postUrl, comments: r.comments, nextCursor: r.nextCursor });
       } catch (err) {
         // One platform failing should not hide the others.
@@ -609,7 +633,7 @@ async function handleApi(request, env, url) {
 
   if (path === '/comments/reply' && method === 'POST') {
     try {
-      const res = await up.createComment(env, {
+      const res = await up.createComment(await profileEnv(env), {
         platform: body.platform, message: body.message,
         commentId: body.comment_id, postId: body.post_id, postUrl: body.post_url,
       });
@@ -619,13 +643,13 @@ async function handleApi(request, env, url) {
 
   if (path === '/comments/delete' && method === 'POST') {
     try {
-      return json({ ok: true, result: await up.deleteComment(env, { platform: body.platform, commentId: body.comment_id, postId: body.post_id }) });
+      return json({ ok: true, result: await up.deleteComment(await profileEnv(env), { platform: body.platform, commentId: body.comment_id, postId: body.post_id }) });
     } catch (err) { return bad(err.message, err.status || 502); }
   }
 
   if (path === '/comments/action' && method === 'POST') {
     try {
-      return json({ ok: true, result: await up.commentAction(env, { platform: body.platform, commentId: body.comment_id, action: body.action, postId: body.post_id }) });
+      return json({ ok: true, result: await up.commentAction(await profileEnv(env), { platform: body.platform, commentId: body.comment_id, action: body.action, postId: body.post_id }) });
     } catch (err) { return bad(err.message, err.status || 502); }
   }
 
