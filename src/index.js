@@ -17,6 +17,7 @@ import MIGRATION_0004 from '../migrations/0004_idea_chat.sql';
 import { PLATFORMS, RULES, LAST_REVIEWED, BEST_TIMES } from './rules.js';
 import { auditPost, auditVariant } from './audit.js';
 import { compose, applyFix } from './compose.js';
+import { suggestTags } from './hashtags.js';
 import { rewrite, aiKey, riff, buildFromIdea } from './ai.js';
 import * as up from './uploadpost.js';
 import * as db from './db.js';
@@ -383,6 +384,12 @@ async function handleApi(request, env, url) {
       overall: all.length ? Math.round(all.reduce((s, r) => s + r.score, 0) / all.length) : 0,
       canSchedule: all.length > 0 && all.every((r) => r.canSchedule),
     });
+  }
+
+  if (path === '/hashtags' && method === 'POST') {
+    const r = RULES[body.platform];
+    if (!r) return bad('Unknown platform.');
+    return json(suggestTags(body.text || '', r, body.already || []));
   }
 
   if (path === '/fix' && method === 'POST') {

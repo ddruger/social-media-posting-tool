@@ -17,9 +17,32 @@ import { RULES, BAIT_PHRASES, AI_TELLS, CORPORATE_SPEAK, BEST_TIMES, PLATFORM_LA
 const URL_RE = /https?:\/\/[^\s<>"')]+/gi;
 const HASHTAG_RE = /(^|\s)#([A-Za-z0-9_]{1,60})/g;
 const EMOJI_RE = /\p{Extended_Pictographic}/gu;
+// Flags are pairs of regional indicators, which are not Extended_Pictographic,
+// so they need matching separately or X under-counts them.
+const WIDE_RE = /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u;
 const CJK_RE = /[ᄀ-ᇿ⺀-鿿ꥠ-꥿가-퟿豈-﫿︰-﹏]/u;
 
-export const len = (s) => [...(s || '')].length;
+/**
+ * Counts what a reader sees, not what JavaScript stores.
+ *
+ * A flag, a family, or any emoji carrying a skin tone is several code points
+ * glued together — 👨‍👩‍👧 is five. Counting those individually made the audit
+ * claim a caption was longer than it is, eating into the budget for nothing.
+ * Grapheme clusters are what the platforms count and what a person sees.
+ */
+const graphemes = (() => {
+  try {
+    const seg = new Intl.Segmenter('en', { granularity: 'grapheme' });
+    return (s) => [...seg.segment(s)].map((g) => g.segment);
+  } catch {
+    return (s) => [...s]; // Very old runtime: code points are the best we have.
+  }
+})();
+
+export const len = (s) => graphemes(s || '').length;
+
+/** The visible text, cut at n characters as a reader would count them. */
+export const takeChars = (s, n) => graphemes(s || '').slice(0, n).join('');
 export const urlsIn = (s) => (s || '').match(URL_RE) || [];
 export const emojiCount = (s) => ((s || '').match(EMOJI_RE) || []).length;
 
@@ -37,8 +60,11 @@ export function xWeightedLength(text, urlCost = 23) {
   const urls = urlsIn(body);
   for (const u of urls) body = body.replace(u, '');
   let count = 0;
-  for (const ch of body) count += EMOJI_RE.test(ch) || CJK_RE.test(ch) ? 2 : 1;
-  EMOJI_RE.lastIndex = 0;
+  // Weigh whole emoji, not their pieces: X bills one emoji as two, however
+  // many code points it is built from.
+  for (const g of graphemes(body)) {
+    count += WIDE_RE.test(g) || CJK_RE.test(g) ? 2 : 1;
+  }
   return count + urls.length * urlCost;
 }
 
@@ -50,7 +76,7 @@ export function firstLineOf(text) {
 
 /** Text as the reader sees it before the "see more" fold. */
 function beforeFold(text, n) {
-  return [...(text || '')].slice(0, n).join('');
+  return takeChars(text, n);
 }
 
 function paragraphsOf(text) {

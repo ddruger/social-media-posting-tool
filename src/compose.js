@@ -8,7 +8,7 @@
  */
 
 import { RULES } from './rules.js';
-import { len, urlsIn, hashtagsIn, xWeightedLength } from './audit.js';
+import { len, takeChars, urlsIn, hashtagsIn, xWeightedLength } from './audit.js';
 
 const URL_RE = /https?:\/\/[^\s<>"')]+/gi;
 
@@ -64,10 +64,9 @@ export function sentencesOf(text) {
 }
 
 export function truncateAtWord(text, max, suffix = '') {
-  const chars = [...(text || '')];
-  if (chars.length <= max) return text;
-  const room = max - [...suffix].length;
-  let out = chars.slice(0, room).join('');
+  if (len(text) <= max) return text;
+  const room = max - len(suffix);
+  let out = takeChars(text, room);
   const sp = out.lastIndexOf(' ');
   if (sp > room * 0.6) out = out.slice(0, sp);
   return out.replace(/[\s,;:—-]+$/, '') + suffix;

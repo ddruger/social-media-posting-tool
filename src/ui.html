@@ -171,6 +171,22 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
 .cmt-reply{margin-top:8px;display:flex;gap:8px}
 .cmt-reply input{flex:1}
 .cmt-none{color:var(--muted);font-size:13.5px;padding:10px 0}
+.cmt-reply{flex-direction:column;align-items:stretch}
+.cmt-reply textarea{min-height:66px;resize:vertical;font-size:14px}
+.cmt-reply-bar{display:flex;gap:8px;align-items:center;margin-top:6px}
+
+/* emoji picker */
+.emoji-btn{border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:5px 9px;font-size:15px;line-height:1;cursor:pointer}
+.emoji-btn:hover{border-color:var(--accent)}
+.emoji-pop{position:absolute;z-index:60;width:312px;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.22);padding:10px}
+.emoji-pop input{margin-bottom:8px}
+.emoji-tabs{display:flex;gap:2px;margin-bottom:7px;flex-wrap:wrap}
+.emoji-tabs button{border:0;background:transparent;padding:4px 7px;border-radius:7px;font-size:15px;line-height:1;cursor:pointer}
+.emoji-tabs button.on{background:var(--soft);outline:1px solid var(--line)}
+.emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-height:210px;overflow-y:auto}
+.emoji-grid button{border:0;background:transparent;font-size:19px;line-height:1;padding:5px 0;border-radius:6px;cursor:pointer}
+.emoji-grid button:hover{background:var(--soft)}
+.emoji-none{grid-column:1/-1;color:var(--muted);font-size:13px;padding:14px;text-align:center}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .switch{position:relative;width:36px;height:20px;flex:none}
@@ -279,6 +295,7 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
             <div class="chat-log" id="chatLog"></div>
             <div class="chat-in">
               <textarea id="chatIn" rows="1" placeholder="e.g. three teams this week still treating their API as next quarter's problem"></textarea>
+              <button class="emoji-btn" id="chatEmoji">🙂</button>
               <button class="btn-primary" id="chatSend">Send</button>
             </div>
           </div>
@@ -292,7 +309,8 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
         <div class="card">
           <h2>The post</h2>
           <label class="fld"><span>Name (just for you)</span><input type="text" id="fName" placeholder="ADSN ep 42 — API-first clip"></label>
-          <label class="fld"><span>Your caption — write it once, however you'd say it</span>
+          <label class="fld"><span>Your caption — write it once, however you'd say it
+            <button class="emoji-btn" id="masterEmoji" style="float:right;margin-top:-2px">🙂</button></span>
             <textarea id="fMaster" rows="8" placeholder="Most teams still aren't shipping API-first. In 2026. It's kind of hysterical.&#10;&#10;Write it the way you'd say it. Drop your hashtags at the end and a link anywhere — Social Studio sorts out where each one belongs per platform."></textarea>
           </label>
           <div class="row">
@@ -541,14 +559,17 @@ function renderPlatforms() {
         <div data-edit>
         ${p === 'youtube' ? `<label class="fld"><span>Title${parse(v.options).youtube_format === 'video' ? '' : ' — only ~40 characters show in the feed'}</span>
           <input type="text" data-f="headline" value="${esc(v.headline)}" maxlength="120"></label>` : ''}
-        <label class="fld"><span>${p === 'youtube' ? 'Description' : 'Caption'}</span>
+        <label class="fld"><span>${p === 'youtube' ? 'Description' : 'Caption'}
+          <button class="emoji-btn" data-emoji-body style="float:right;margin-top:-2px">🙂</button></span>
           <textarea data-f="body" rows="${p === 'x' ? 4 : 7}">${esc(v.body)}</textarea></label>
         <div class="counter" data-counter></div>
         <label class="fld" style="margin-top:12px"><span>First comment ${p === 'linkedin' ? '— where your link belongs on LinkedIn' : '(optional)'}</span>
           <input type="text" data-f="first_comment" value="${esc(v.first_comment)}"></label>
         <div class="row">
-          <label class="fld"><span>Hashtags (comma separated, no #)</span>
-            <input type="text" data-f="hashtags" value="${esc(Array.isArray(tags) ? tags.join(', ') : '')}"></label>
+          <label class="fld"><span>Hashtags (comma separated, no #)
+            <button class="btn-sm" data-act="suggest-tags" style="float:right;margin-top:-3px;font-weight:500;text-transform:none;letter-spacing:0">Suggest</button></span>
+            <input type="text" data-f="hashtags" value="${esc(Array.isArray(tags) ? tags.join(', ') : '')}">
+            <div data-tag-suggestions style="margin-top:7px"></div></label>
           <label class="fld"><span>Stagger — minutes after send time</span>
             <input type="text" inputmode="numeric" data-f="offset_min" value="${esc(v.offset_min || 0)}"></label>
         </div>
@@ -584,6 +605,43 @@ function renderPlatforms() {
       S.dirty = true;
       if (whenMode() === 'draft') setWhenMode('draft');
       liveAudit();
+    };
+    attachEmoji(card.querySelector('[data-emoji-body]'), card.querySelector('[data-f=body]'));
+
+    card.querySelector('[data-act=suggest-tags]').onclick = async (e) => {
+      e.preventDefault();
+      const box = card.querySelector('[data-tag-suggestions]');
+      const field = card.querySelector('[data-f=hashtags]');
+      const current = () => field.value.split(',').map((t) => t.trim().replace(/^#/, '')).filter(Boolean);
+      box.innerHTML = '<span class="muted" style="font-size:12.5px">thinking…</span>';
+      try {
+        // Read the platform's own caption, since each says something different.
+        const r = await api('/hashtags', {
+          method: 'POST',
+          body: { platform: p, text: `${v.headline || ''}\n${v.body || ''}`, already: current() },
+        });
+        if (!r.suggestions.length) {
+          box.innerHTML = '<span class="muted" style="font-size:12.5px">Nothing obvious — the caption is short on subject words. Try after writing more.</span>';
+          return;
+        }
+        box.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${r.suggestions.map((t) => `<button type="button" class="btn-sm" data-tag="${esc(t)}">+ #${esc(t)}</button>`).join('')}
+          <span class="muted" style="font-size:12px">${S.rules[p]?.label || p} rewards ${r.idealMin}–${r.idealMax}</span>
+        </div>`;
+        box.querySelectorAll('[data-tag]').forEach((b) => {
+          b.onclick = (ev) => {
+            ev.preventDefault();
+            const next = [...new Set([...current(), b.dataset.tag])];
+            field.value = next.join(', ');
+            v.hashtags = JSON.stringify(next);
+            S.dirty = true;
+            b.remove();
+            liveAudit();
+          };
+        });
+      } catch (err) {
+        box.innerHTML = `<span class="muted" style="font-size:12.5px;color:var(--bad)">${esc(err.message)}</span>`;
+      }
     };
     card.querySelectorAll('[data-view] button').forEach((b) => {
       b.onclick = () => showView(card, b.dataset.v);
@@ -642,6 +700,96 @@ function renderPlatforms() {
       }
     };
   });
+}
+
+/* ---------------- emoji picker ---------------- */
+/**
+ * A curated set rather than the full Unicode list: these are the ones that
+ * actually turn up in business and creator posts, and a few hundred loads
+ * instantly where a complete set would be a download.
+ */
+const EMOJI = {
+  '😀': ['😀 grin smile happy','😄 smile happy','😅 sweat laugh nervous','😂 laugh cry tears','🙂 slight smile','😉 wink','😊 blush smile','😍 heart eyes love','🤩 star struck wow','😎 cool sunglasses','🤔 thinking hmm','🤨 raised eyebrow skeptical','😐 neutral straight','🙄 eye roll','😬 grimace awkward','😴 sleep tired bored','🤯 mind blown exploding','🥳 party celebrate','😤 triumph determined','😭 sob crying','🤝 handshake deal agree','🫡 salute respect'],
+  '👍': ['👍 thumbs up yes agree','👎 thumbs down no','👏 clap applause','🙌 raise hands celebrate','🤲 open hands','👋 wave hi hello','✌️ peace victory','🤞 fingers crossed hope','💪 muscle strong','🫵 point you','👀 eyes look watch','🧠 brain smart think','🙏 pray thanks please','✍️ writing hand','👇 point down below','👉 point right','👈 point left','☝️ point up one'],
+  '🚀': ['🚀 rocket launch ship growth','🔥 fire hot trending','⚡ lightning fast speed','💡 idea lightbulb insight','🎯 target goal aim','📈 chart up growth','📉 chart down decline','📊 bar chart data','💰 money revenue','💸 money flying spend','🏆 trophy win','🥇 first place gold','🎉 party popper launch','✨ sparkles new shiny','⭐ star favourite','🌟 glowing star','🧩 puzzle piece fit','🔑 key access unlock','🛠️ tools build','⚙️ gear settings ops','🧪 test experiment','🔍 magnify search find'],
+  '💼': ['💼 briefcase work business','📌 pin important','📎 paperclip attach','📝 memo note write','📄 page document','📋 clipboard list','🗓️ calendar date schedule','⏰ alarm time deadline','⏳ hourglass waiting','📬 mailbox inbox','📣 megaphone announce','📢 loudspeaker shout','🔔 bell notify','🏗️ construction building','🏢 office company','🤖 robot ai automation','💻 laptop code work','📱 phone mobile','🎙️ microphone podcast','🎧 headphones listen','🎬 clapper video film','📺 tv media'],
+  '❤️': ['❤️ red heart love','🧡 orange heart','💛 yellow heart','💚 green heart','💙 blue heart','💜 purple heart','🖤 black heart','🤍 white heart','💔 broken heart','💯 hundred perfect','✅ check done yes','❌ cross no wrong','⚠️ warning caution','🚨 siren alert urgent','❓ question','❗ exclamation','➡️ arrow right next','🔄 refresh loop repeat','🆕 new','🔗 link chain url'],
+};
+const EMOJI_TABS = Object.keys(EMOJI);
+
+let openPop = null;
+function closeEmojiPop() { openPop?.remove(); openPop = null; }
+document.addEventListener('click', (e) => {
+  if (openPop && !openPop.contains(e.target) && !e.target.matches('[data-emoji-for]')) closeEmojiPop();
+});
+
+/** Inserts at the caret and leaves the cursor after it, so you can keep typing. */
+function insertAtCaret(field, text) {
+  const start = field.selectionStart ?? field.value.length;
+  const end = field.selectionEnd ?? field.value.length;
+  field.value = field.value.slice(0, start) + text + field.value.slice(end);
+  const pos = start + text.length;
+  field.focus();
+  field.setSelectionRange(pos, pos);
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function attachEmoji(button, field) {
+  if (!button || !field) return;
+  button.type = 'button';
+  button.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (openPop) { closeEmojiPop(); return; }
+
+    const pop = document.createElement('div');
+    pop.className = 'emoji-pop';
+    pop.innerHTML = `
+      <input type="text" placeholder="Search — rocket, chart, thanks…">
+      <div class="emoji-tabs">${EMOJI_TABS.map((t, i) => `<button type="button" data-tab="${t}" class="${i ? '' : 'on'}">${t}</button>`).join('')}</div>
+      <div class="emoji-grid"></div>`;
+    document.body.appendChild(pop);
+
+    const r = button.getBoundingClientRect();
+    pop.style.top = `${window.scrollY + r.bottom + 6}px`;
+    pop.style.left = `${Math.max(8, Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - 322))}px`;
+
+    const grid = pop.querySelector('.emoji-grid');
+    const search = pop.querySelector('input');
+
+    const draw = (items) => {
+      grid.innerHTML = items.length
+        ? items.map((entry) => {
+            const [char, ...words] = entry.split(' ');
+            return `<button type="button" data-e="${char}" title="${esc(words.join(' '))}">${char}</button>`;
+          }).join('')
+        : '<div class="emoji-none">Nothing matches that.</div>';
+      grid.querySelectorAll('[data-e]').forEach((b) => {
+        b.onclick = (ev) => {
+          ev.preventDefault();
+          insertAtCaret(field, b.dataset.e);
+          // Stays open so you can add a couple without reopening it.
+        };
+      });
+    };
+
+    draw(EMOJI[EMOJI_TABS[0]]);
+    pop.querySelectorAll('[data-tab]').forEach((t) => {
+      t.onclick = (ev) => {
+        ev.preventDefault();
+        pop.querySelectorAll('[data-tab]').forEach((x) => x.classList.toggle('on', x === t));
+        search.value = '';
+        draw(EMOJI[t.dataset.tab]);
+      };
+    });
+    search.oninput = () => {
+      const q = search.value.trim().toLowerCase();
+      if (!q) { draw(EMOJI[pop.querySelector('[data-tab].on').dataset.tab]); return; }
+      draw(Object.values(EMOJI).flat().filter((entry) => entry.toLowerCase().includes(q)));
+    };
+    search.focus();
+    openPop = pop;
+  };
 }
 
 /* ---------------- post previews ---------------- */
@@ -1204,6 +1352,8 @@ async function persistChat() {
   S.current.idea_chat = JSON.stringify(chat);
 }
 
+attachEmoji($('#chatEmoji'), $('#chatIn'));
+attachEmoji($('#masterEmoji'), $('#fMaster'));
 $('#chatSend').onclick = sendIdea;
 $('#chatIn').addEventListener('keydown', (e) => {
   // Enter sends; Shift+Enter is a newline.
@@ -1432,8 +1582,12 @@ async function openComments(postId) {
               <button class="btn-sm" data-act="del" style="color:var(--bad)">Delete</button>
             </div>
             <div class="cmt-reply hide">
-              <input type="text" placeholder="Reply as you…">
-              <button class="btn-primary btn-sm" data-act="send">Send</button>
+              <textarea placeholder="Reply as you…  Enter starts a new line."></textarea>
+              <div class="cmt-reply-bar">
+                <button class="btn-primary btn-sm" data-act="send">Send</button>
+                <button class="emoji-btn" data-emoji-for>🙂</button>
+                <span class="muted" style="font-size:12px">⌘/Ctrl + Enter sends</span>
+              </div>
             </div>
           </div>
         </div>`).join('') : '<p class="cmt-none">No comments yet.</p>'}
@@ -1471,7 +1625,8 @@ function wireCommentActions(box, data) {
     card.querySelectorAll('.cmt').forEach((row) => {
       const commentId = row.dataset.cid;
       const replyBox = row.querySelector('.cmt-reply');
-      const input = row.querySelector('.cmt-reply input');
+      const input = row.querySelector('.cmt-reply textarea');
+      attachEmoji(row.querySelector('[data-emoji-for]'), input);
 
       row.querySelector('[data-act=reply]').onclick = () => {
         replyBox.classList.toggle('hide');
@@ -1494,7 +1649,10 @@ function wireCommentActions(box, data) {
         } finally { btn.disabled = false; btn.textContent = 'Send'; }
       };
       row.querySelector('[data-act=send]').onclick = send;
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+      // Enter is a newline in a reply box; sending is deliberate.
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); }
+      });
 
       row.querySelector('[data-act=del]').onclick = async () => {
         if (!confirm('Delete this comment? It cannot be undone.')) return;

@@ -391,6 +391,21 @@ straight to the post instead of pretending there's nothing there.
 A post only appears once it has published and the tool knows where it landed,
 which happens on the next status refresh.
 
+### Emoji and hashtags
+
+Every caption field, the idea chat and the comment reply box have an emoji
+picker — a curated set with search, so typing "chart" or "thanks" finds the
+one you meant. It inserts at the cursor and stays open for a second one.
+
+Character counts measure **grapheme clusters**, so a flag, a family or an
+emoji with a skin tone counts as one character, the way a platform counts it.
+On X they weigh two, which is how X bills them.
+
+**Suggest** next to any hashtags field reads that platform's caption and
+proposes tags from a library tuned to ad tech, product, AI, media, podcasting,
+startups and investing. Keyword-matched rather than AI — instant, free, no key
+— and it tells you how many that platform actually rewards.
+
 ### Previews
 
 Every platform card has an **Edit / Preview** switch. Preview shows roughly how
