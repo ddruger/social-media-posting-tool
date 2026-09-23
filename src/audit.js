@@ -319,6 +319,90 @@ function carouselChecks(platform, r, items, f) {
   }
 }
 
+/**
+ * What a file actually is, from the MIME type the browser reported or, for
+ * older uploads that predate that, the extension on the stored key.
+ */
+const FORMAT_LABELS = { jpeg: 'JPEG', png: 'PNG', gif: 'GIF', webp: 'WebP', heic: 'HEIC', avif: 'AVIF', bmp: 'BMP', tiff: 'TIFF', svg: 'SVG' };
+
+export function formatOf(item) {
+  const mime = (item?.meta?.mime || '').toLowerCase();
+  const fromMime = /^image\/([a-z0-9+.-]+)/.exec(mime)?.[1];
+  const ext = /\.([a-z0-9]+)$/i.exec(item?.meta?.name || item?.key || '')?.[1]?.toLowerCase();
+  const raw = fromMime || ext || '';
+  if (raw === 'jpg' || raw === 'pjpeg') return 'jpeg';
+  if (raw === 'svg+xml') return 'svg';
+  if (raw === 'tif') return 'tiff';
+  return raw;
+}
+
+const fmtLabel = (f) => FORMAT_LABELS[f] || (f || 'this file').toUpperCase();
+
+/**
+ * Checks every attached image against what the platform will actually accept.
+ *
+ * The formats come from Upload-Post's own photo requirements, because that is
+ * the layer we publish through — its rules are the ones that bind, not the
+ * raw platform APIs underneath.
+ */
+function formatChecks(platform, r, items, f) {
+  const spec = r.image;
+  const images = (items || []).filter((i) => (i.kind || 'image') !== 'video');
+  if (!spec?.formats || !images.length) return;
+
+  const seen = [];
+  for (const item of images) {
+    const fmt = formatOf(item);
+    // An unrecognised file is not evidence of a problem — say nothing.
+    if (!fmt || seen.includes(fmt)) continue;
+    seen.push(fmt);
+
+    if (!spec.formats.includes(fmt)) {
+      f.push(block(
+        `format-${fmt}`,
+        `${r.label} does not accept ${fmtLabel(fmt)}`,
+        `${r.label} takes ${listify(spec.formats.map(fmtLabel))}. ${fmt === 'png' && platform === 'tiktok'
+          ? 'PNG is what most tools export by default, which is exactly why this one catches people out — re-export as JPEG.'
+          : `Re-export as ${fmtLabel(spec.formats[0])}.`}`,
+      ));
+    } else if (fmt === 'gif' && spec.animatesGif === false) {
+      f.push(warn(
+        'gif-static',
+        `The GIF will not animate on ${r.label}`,
+        `${r.label} accepts the file but has no animated GIF in feed — it lands as a single frozen frame. If the movement is the point, this is the wrong platform for it.`,
+      ));
+    } else if (fmt === 'gif' && spec.animatesGif) {
+      f.push(ok('gif', `GIF animates on ${r.label}`, spec.gifMaxFrames
+        ? `Up to ${spec.gifMaxFrames} frames.`
+        : 'It will play as you made it.'));
+    }
+  }
+
+  // X is the only one where a GIF cannot share the post with anything else.
+  if (spec.gifIsExclusive && images.length > 1 && seen.includes('gif')) {
+    f.push(block(
+      'gif-exclusive',
+      `A GIF cannot sit alongside other files on ${r.label}`,
+      `${r.label} takes up to 4 photos, OR one GIF, OR one video — never a mix. Post the GIF on its own.`,
+    ));
+  }
+
+  // Per-platform size ceilings, which are far below our 95 MB upload cap.
+  for (const item of images) {
+    const bytes = item?.meta?.bytes;
+    if (!bytes) continue;
+    const cap = formatOf(item) === 'gif' && spec.gifMaxBytes ? spec.gifMaxBytes : spec.maxBytes;
+    if (cap && bytes > cap) {
+      f.push(block(
+        'image-too-big',
+        `Too large for ${r.label}`,
+        `${(bytes / 1048576).toFixed(1)} MB against a ${(cap / 1048576).toFixed(0)} MB limit. Export it smaller or at a lower quality.`,
+      ));
+      break;
+    }
+  }
+}
+
 function mediaChecks(platform, r, media, kind, f, hasMedia = true) {
   if ((kind === 'video' || kind === 'image') && !hasMedia) {
     f.push(block('media-missing', 'No file uploaded yet', `This post is set to ${kind} but nothing has been uploaded. Publishing would fail.`));
@@ -795,6 +879,9 @@ export function auditVariant(variant, ctx = {}) {
   universalChecks(variant, ctx, findings);
   if (!findings.some((x) => x.id === 'empty')) {
     (AUDITORS[platform] || (() => {}))(variant, ctx, findings);
+    // File formats are checked centrally: every platform disagrees about what
+    // it accepts, and the rule is the same shape everywhere.
+    if (RULES[platform]) formatChecks(platform, RULES[platform], ctx.items, findings);
     timingCheck(platform, ctx, findings);
   }
 

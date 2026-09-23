@@ -56,6 +56,9 @@ export const RULES = {
     // commonly cap at 9, and past that the gallery reads as a dump, so 9 is
     // the advised ceiling and 20 the hard one.
     carousel: { min: 2, max: 9, hardMax: 20 },
+    // [OFFICIAL] LinkedIn's Images API takes JPEG, PNG and GIF, and animates
+    // GIFs up to 250 frames. Cap is on total pixels, not file size.
+    image: { formats: ['jpeg', 'png', 'gif'], animatesGif: true, maxPixels: 36152320, gifMaxFrames: 250 },
     // [OFFICIAL] LinkedIn's API cannot create a draft. Drafts exist in the
     // LinkedIn UI only — nothing published through an API can land in them.
     draft: { supported: false, reason: 'LinkedIn drafts exist only in the app; the API cannot create one.' },
@@ -91,6 +94,9 @@ export const RULES = {
     // characters, however long the real link is. Media costs nothing.
     // [OFFICIAL] Four images per post, hard.
     carousel: { min: 2, max: 4, hardMax: 4 },
+    // [OFFICIAL] X takes JPEG, PNG, GIF and WebP. One animated GIF per post,
+    // and a GIF cannot sit alongside photos or a video.
+    image: { formats: ['jpeg', 'png', 'gif', 'webp'], animatesGif: true, maxBytes: 5 * 1024 * 1024, gifMaxBytes: 15 * 1024 * 1024, gifIsExclusive: true },
     // [OFFICIAL] No draft for a normal post. (Articles have a draft flag,
     // which is a different thing entirely.)
     draft: { supported: false, reason: 'X has no draft for regular posts over the API.' },
@@ -171,7 +177,9 @@ export const RULES = {
       idealMaxSeconds: 90,
     },
     image: {
-      // [OFFICIAL] 8 MB, 320–1440px wide, JPEG or PNG.
+      // [OFFICIAL] 8 MB, 320–1440px wide, JPEG or PNG. No GIF at all.
+      formats: ['jpeg', 'png'],
+      animatesGif: false,
       maxBytes: 8 * 1024 * 1024,
       minWidth: 320,
       maxWidth: 1440,
@@ -202,6 +210,13 @@ export const RULES = {
     // is what any scheduling tool uses — is capped at 10. Longer carousels
     // have to be posted by hand.
     carousel: { min: 2, max: 10, hardMax: 10 },
+    // Meta's own Content Publishing API says "JPEG is the only image format
+    // supported" — but we publish through Upload-Post, which accepts PNG and
+    // GIF for Instagram and converts them. Upload-Post is the layer that
+    // actually binds, so that is what we audit against. What no amount of
+    // converting fixes is animation: Instagram has no animated GIF in feed,
+    // so a GIF lands as a still frame. That is a warning, not a blocker.
+    image: { formats: ['jpeg', 'png', 'gif'], animatesGif: false, maxBytes: 8 * 1024 * 1024 },
     carouselApiCapBelowApp: 20,
     // [OFFICIAL] The Content Publishing API publishes; there is no draft state.
     draft: { supported: false, reason: 'Instagram has no draft state over the API.' },
@@ -236,6 +251,10 @@ export const RULES = {
     maxChars: 2200,
     // [OFFICIAL] Photo posts take up to 35 images.
     carousel: { min: 2, max: 35, hardMax: 35 },
+    // [OFFICIAL] TikTok's photo-post API takes JPEG and WebP only. PNG is
+    // rejected — which catches people out, because PNG is what most tools
+    // export by default. No GIF either.
+    image: { formats: ['jpeg', 'webp'], animatesGif: false, maxBytes: 20 * 1024 * 1024 },
     // [OFFICIAL] post_mode=MEDIA_UPLOAD lands in your TikTok drafts, where you
     // can edit and tag before publishing. A real draft.
     draft: { supported: true, kind: 'draft', note: 'Lands in your TikTok inbox as a draft.' },

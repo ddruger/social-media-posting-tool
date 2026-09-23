@@ -321,6 +321,52 @@ One consequence worth knowing: platforms with different media **cannot share
 an API call**, so they publish as separate calls. On the free Upload-Post plan
 that counts as separate uploads.
 
+### Image formats and GIFs
+
+The platforms disagree about this more than you'd expect, and getting it wrong
+is a rejection at send time rather than something you can see coming. So the
+audit checks the format of every image you attach:
+
+| | Accepts | Max size | Animated GIF |
+|---|---|---|---|
+| **LinkedIn** | JPEG, PNG, GIF | 36.1M pixels | **Yes** — up to 250 frames |
+| **X** | JPEG, PNG, GIF, WebP | 5 MB · 15 MB for a GIF | **Yes** — one only, never alongside photos |
+| **Instagram** | JPEG, PNG, GIF | 8 MB | Posts, but as a **frozen frame** |
+| **Threads** | JPEG, PNG | 8 MB | **No** |
+| **TikTok** | JPEG, WebP | 20 MB | **No** |
+
+Two of these catch people out:
+
+- **TikTok rejects PNG.** PNG is what most tools export by default, so this is
+  the one you'll hit. The audit blocks it and tells you to re-export as JPEG.
+- **Instagram has no animated GIF in feed.** The file uploads fine and lands
+  as a single still. If the movement was the point, that's not what you wanted,
+  so the audit warns you rather than letting it go quietly.
+
+**Attaching a GIF switches off the platforms that can't take one** — Threads
+and TikTok — and tells you why. They'd otherwise fail at send time. It only
+touches platforms using the shared media; one carrying its own files is left
+alone and judged on its own card.
+
+**JPEG is the format that goes everywhere.** If you don't want to think about
+any of this, export JPEG.
+
+<details>
+<summary>Why Instagram is listed as accepting PNG when Meta says JPEG only</summary>
+
+Meta's own Content Publishing API is blunt about it — *"JPEG is the only image
+format supported"* — and a raw PNG sent straight to Instagram is rejected. But
+this tool doesn't talk to Instagram directly; it goes through Upload-Post,
+whose published photo requirements list PNG and GIF as accepted for Instagram,
+and which converts on the way through.
+
+Upload-Post is the layer that actually binds, so that's what the audit checks.
+Blocking PNG on Instagram would mean refusing a file that will, in fact, post.
+
+If you ever do see Instagram reject a PNG, that assumption has changed and the
+table above needs a line moved — it's one value in `src/rules.js`.
+</details>
+
 ### Carousels and multi-image posts
 
 Drop in several images and the post becomes a carousel. Reorder or remove
@@ -491,6 +537,10 @@ The main ones, verified 22 September 2026:
 | Threads 500 chars, emoji billed as UTF-8 bytes | Meta Threads API docs |
 | Threads: exactly **one** topic tag per post, 1–50 chars | @threads, Dec 2023 — "You can only tag one topic per post" |
 | Threads carousel 2–20 items; video ≤5 min; 5 links max | Meta Threads API docs |
+| Per-platform image formats and size caps | Upload-Post photo requirements, cross-checked against each platform |
+| TikTok photo posts take JPEG and WebP, not PNG | TikTok Content Posting API |
+| LinkedIn animates GIFs up to 250 frames | LinkedIn Images API |
+| X: one GIF per post, never mixed with photos | X media docs |
 | Threads best times: weekday mornings 6–11am, peak Thu 9am | Buffer — 2.5M Threads posts |
 | X 280 / 25,000 Premium; every link bills 23 chars | X |
 | X 1–2 hashtags ≈ +21% engagement; 5+ ≈ −17% reach | 2026 engagement analyses |

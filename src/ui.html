@@ -359,10 +359,10 @@ label.fld > span{display:block;font-size:12px;text-transform:uppercase;letter-sp
         </div>
 
         <div class="card">
-          <h2>Video or image</h2>
+          <h2>Video, image or GIF</h2>
           <div id="dropzone" class="drop">
             <strong>Drop files here</strong> or click to choose<br>
-            <span class="muted">One video, or several images for a carousel. Vertical 1080×1920 for Reels and Shorts. Up to 95 MB each.</span>
+            <span class="muted">One video, or several images for a carousel. JPEG travels everywhere; GIFs animate on LinkedIn and X only. Vertical 1080×1920 for Reels and Shorts. Up to 95 MB each.</span>
           </div>
           <input type="file" id="fileInput" class="hide" accept="video/*,image/*" multiple>
           <div id="mediaInfo" class="media-info hide" style="margin-top:12px"></div>
@@ -1450,7 +1450,7 @@ async function uploadMediaList(files) {
       toast(`${file.name}: ${err.message}`, true, 7000);
     }
   }
-  dz.innerHTML = '<strong>Drop files here</strong> or click to choose<br><span class="muted">One video, or several images for a carousel. Up to 95 MB each.</span>';
+  dz.innerHTML = '<strong>Drop files here</strong> or click to choose<br><span class="muted">One video, or several images for a carousel. JPEG travels everywhere; GIFs animate on LinkedIn and X only. Up to 95 MB each.</span>';
   await saveMediaList(items);
 }
 
@@ -1464,6 +1464,47 @@ function mediaList() {
   return [];
 }
 
+/** What a file is, from the MIME the browser gave us or the stored filename. */
+function formatOf(item) {
+  const mime = (item?.meta?.mime || '').toLowerCase();
+  const fromMime = /^image\/([a-z0-9+.-]+)/.exec(mime)?.[1];
+  const ext = /\.([a-z0-9]+)$/i.exec(item?.meta?.name || item?.key || '')?.[1]?.toLowerCase();
+  const raw = fromMime || ext || '';
+  return raw === 'jpg' ? 'jpeg' : raw;
+}
+
+/**
+ * A GIF simply cannot be published to some platforms, so attaching one
+ * switches those off rather than letting the post fail at send time.
+ *
+ * Only platforms taking the SHARED media are touched: one carrying its own
+ * files is not affected by what you drop at the top, and the audit handles
+ * that case on its own card.
+ */
+function applyGifPolicy(items) {
+  if (!(items || []).some((i) => formatOf(i) === 'gif')) return;
+  const turnedOff = [];
+  for (const [p, r] of Object.entries(S.rules || {})) {
+    const formats = r?.image?.formats;
+    if (!formats || formats.includes('gif')) continue;
+    const v = S.variants.find((x) => x.platform === p);
+    // Its own media means its own rules — leave it alone.
+    if (!v || !v.enabled || variantMediaList(v).length) continue;
+    v.enabled = 0;
+    turnedOff.push(r.label || p);
+  }
+  if (!turnedOff.length) return;
+  S.dirty = true;
+  toast(`${listOf(turnedOff)} switched off — ${turnedOff.length === 1 ? 'it does' : 'they do'} not accept GIFs.`, false, 8000);
+}
+
+/** "a", "a and b", "a, b and c" */
+function listOf(items) {
+  if (items.length <= 1) return items[0] || '';
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 async function saveMediaList(items) {
   const first = items[0];
   // media_kind describes the post as a whole: a lone video, or images.
@@ -1474,39 +1515,17 @@ async function saveMediaList(items) {
     media_kind: kind,
     media_meta: JSON.stringify(first?.meta || {}),
   };
-  await api(`/posts/${S.current.id}`, { method: 'PATCH', body: { post: patch } });
+  applyGifPolicy(items);
+  await api(`/posts/${S.current.id}`, {
+    method: 'PATCH',
+    body: { post: patch, variants: S.variants.map((v) => ({ ...v, enabled: !!v.enabled })) },
+  });
   Object.assign(S.current, patch);
   renderMedia();
   // Each platform card shows what it will publish, so they follow the shared
   // media changing — otherwise they keep claiming there is none.
   renderPlatforms();
   runAudit();
-}
-
-async function uploadMedia(file) {
-  if (!S.current) return;
-  if (file.size > 95 * 1024 * 1024) { toast(`That file is ${(file.size / 1048576).toFixed(0)} MB. The limit is 95 MB.`, true, 7000); return; }
-  const dz = $('#dropzone');
-  dz.innerHTML = '<span class="spin"></span> Uploading…';
-  try {
-    const meta = await readMeta(file);
-    const res = await fetch('/api/media', {
-      method: 'POST',
-      headers: { 'content-type': file.type || 'application/octet-stream', 'x-filename': file.name },
-      body: file,
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Upload failed.');
-    const kind = file.type.startsWith('video/') ? 'video' : 'image';
-    await api(`/posts/${S.current.id}`, { method: 'PATCH', body: { post: { media_key: data.key, media_kind: kind, media_meta: JSON.stringify(meta) } } });
-    S.current.media_key = data.key; S.current.media_kind = kind; S.current.media_meta = JSON.stringify(meta);
-    renderMedia(); runAudit();
-    toast('Media uploaded.');
-  } catch (err) {
-    toast(err.message, true, 7000);
-  } finally {
-    dz.innerHTML = '<strong>Drop files here</strong> or click to choose<br><span class="muted">One video, or several images for a carousel. Up to 95 MB each.</span>';
-  }
 }
 
 $('#dropzone').onclick = () => $('#fileInput').click();
